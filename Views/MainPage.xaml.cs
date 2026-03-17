@@ -116,8 +116,36 @@ namespace AnimeStreamer.Views
 
         private void AnimeGrid_ItemClick(object sender, ItemClickEventArgs e)
         {
-            var clickedAnime = (AnimeItemViewModel)e.ClickedItem;
-            System.Diagnostics.Debug.WriteLine($"Clicked: {clickedAnime.Title}");
+            try
+            {
+                bool navigated = false;
+
+                if (this.Frame != null)
+                {
+                    // CHANGED: Pass the entire 'clickedAnime' object, not just the DriveId
+                    navigated = this.Frame.Navigate(typeof(FolderPage), clickedAnime);
+                }
+
+                if (!navigated)
+                {
+                    try
+                    {
+                        var root = App.MainWindow?.Content as Frame;
+                        if (root != null)
+                        {
+                            // CHANGED HERE TOO
+                            navigated = root.Navigate(typeof(FolderPage), clickedAnime);
+                        }
+                    }
+                    catch { /* ignore fallback failures */ }
+                }
+
+                if (!navigated)
+                {
+                    ErrorText.Text = "Navigation failed: could not find a Frame host.";
+                    ErrorText.Visibility = Visibility.Visible;
+                }
+            }
         }
     }
 }
