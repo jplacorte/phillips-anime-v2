@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "AnimeStreamer (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "AnimeStreamer (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
