@@ -2,20 +2,20 @@ using Microsoft.UI.Xaml.Controls;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using StreamApp.Services;
+using AnimeStreamer.Services;
 using StreamApp.ViewModels;
 
 namespace AnimeStreamer.Views
 {
     public sealed partial class MainPage : Page
     {
-        private readonly GoogleDriveService _driveService;
+        private readonly GoogleDriveService _driveService = new GoogleDriveService();
         public ObservableCollection<AnimeItemViewModel> AnimeLibrary { get; } = new();
 
         public MainPage()
         {
             this.InitializeComponent();
 
-            _driveService = new GoogleDriveService();
             AnimeGrid.ItemsSource = AnimeLibrary;
 
             this.Loaded += MainPage_Loaded;

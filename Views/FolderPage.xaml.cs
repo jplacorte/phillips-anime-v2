@@ -4,13 +4,14 @@ using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using StreamApp.Services;
+using AnimeStreamer.Services;
 using StreamApp.ViewModels;
 
 namespace AnimeStreamer.Views
 {
     public sealed partial class FolderPage : Page
     {
-        private readonly GoogleDriveService _driveService;
+        private readonly GoogleDriveService _driveService = new GoogleDriveService();
 
         // We now have TWO collections!
         public ObservableCollection<EpisodeItemViewModel> Episodes { get; } = new();
@@ -22,7 +23,6 @@ namespace AnimeStreamer.Views
         public FolderPage()
         {
             this.InitializeComponent();
-            _driveService = new GoogleDriveService();
 
             EpisodesList.ItemsSource = Episodes;
             SubfolderGrid.ItemsSource = Subfolders;
@@ -199,7 +199,9 @@ namespace AnimeStreamer.Views
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
 
-            // Launch the video player!
+            // Show the loading state
+            LoadingOverlay.Visibility = Visibility.Visible;
+
             this.Frame.Navigate(typeof(PlayerPage), clickedEpisode);
         }
 
