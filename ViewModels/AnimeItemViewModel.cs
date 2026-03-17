@@ -5,13 +5,13 @@ namespace StreamApp.ViewModels
 {
     public class AnimeItemViewModel : INotifyPropertyChanged
     {
-        // Provide default values so XAML-generated code can instantiate this view model
-        // without needing to set required properties at compile time.
+        // Safe defaults to prevent XAML x:Bind crashes
         public string DriveId { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
 
-        // Initialize with a default local asset so x:Bind NEVER sees a null value!
-        private string _coverUrl = "ms-appx:///Assets/StoreLogo.png";
+        // The new Folder Icon as the default fallback (with the semicolon!)
+        private string _coverUrl = "ms-appx:///Assets/FolderIcon.jpg";
+
         public string CoverUrl
         {
             get => _coverUrl;

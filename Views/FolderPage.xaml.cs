@@ -72,12 +72,23 @@ namespace AnimeStreamer.Views
                     // 1. Process Subfolders (Seasons)
                     if (folders != null && folders.Count > 0)
                     {
-                        hasContent = true;
-                        SubfolderGrid.Visibility = Visibility.Visible;
+                        // Define the list of folder names to hide
+                        var hiddenFolders = new[] { "specials", "special", "fanart", "fanarts", "extras", "extra" };
 
                         foreach (var f in folders)
                         {
                             if (f.Id == null || f.Name == null) continue;
+
+                            // Check if the current folder's name matches any in the hidden list
+                            bool shouldHide = hiddenFolders.Contains(f.Name.ToLower());
+
+                            if (shouldHide)
+                            {
+                                continue; // Skip this folder and move to the next one
+                            }
+
+                            hasContent = true;
+                            SubfolderGrid.Visibility = Visibility.Visible;
 
                             // If the subfolder is just called "Season 2", prefix it with the Anime Name so Jikan can find it!
                             string fullTitle = f.Name.ToLower().Contains(_currentAnimeTitle!.ToLower())
