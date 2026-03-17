@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-// 1. ADD THIS NAMESPACE FOR NAVIGATION:
 using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -12,7 +11,10 @@ namespace AnimeStreamer.Views
     public sealed partial class FolderPage : Page
     {
         private readonly GoogleDriveService _driveService;
+
+        // We now have TWO collections!
         public ObservableCollection<EpisodeItemViewModel> Episodes { get; } = new();
+        public ObservableCollection<AnimeItemViewModel> Subfolders { get; } = new();
 
         private string? _currentFolderId;
         private string? _currentAnimeTitle;
@@ -21,18 +23,16 @@ namespace AnimeStreamer.Views
         {
             this.InitializeComponent();
             _driveService = new GoogleDriveService();
+
             EpisodesList.ItemsSource = Episodes;
+            SubfolderGrid.ItemsSource = Subfolders;
         }
 
-        // 2. ADD THIS METHOD TO CATCH THE INCOMING DATA:
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-
-            // Check if the data passed during navigation is our AnimeItemViewModel
             if (e.Parameter is AnimeItemViewModel selectedAnime)
             {
-                // Feed it directly into your loading logic!
                 LoadEpisodes(selectedAnime);
             }
         }
@@ -41,52 +41,89 @@ namespace AnimeStreamer.Views
         {
             _currentFolderId = anime.DriveId;
             _currentAnimeTitle = anime.Title;
-
-            // This will change the text from "Anime Title" to the real name!
             AnimeTitleText.Text = anime.Title;
-
-            FetchEpisodesAsync();
+            FetchContentsAsync();
         }
 
-        private async void FetchEpisodesAsync()
+        private async void FetchContentsAsync()
         {
             if (string.IsNullOrEmpty(_currentFolderId)) return;
 
             EpisodesLoadingRing.IsActive = true;
-            ErrorText.Visibility = Visibility.Collapsed; // Hide any previous errors
+            ErrorText.Visibility = Visibility.Collapsed;
             Episodes.Clear();
+            Subfolders.Clear();
 
             try
             {
-                var files = await Task.Run(() => _driveService.GetVideoFilesInFolderAsync(_currentFolderId));
+                // Fetch BOTH Subfolders and Video Files concurrently
+                var folderTask = Task.Run(() => _driveService.GetSubFoldersAsync(_currentFolderId));
+                var fileTask = Task.Run(() => _driveService.GetVideoFilesInFolderAsync(_currentFolderId));
+
+                await Task.WhenAll(folderTask, fileTask);
+
+                var folders = folderTask.Result;
+                var files = fileTask.Result;
 
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
-                    // CHECK: Did Google Drive return an empty list?
-                    if (files == null || files.Count == 0)
+                    bool hasContent = false;
+
+                    // 1. Process Subfolders (Seasons)
+                    if (folders != null && folders.Count > 0)
                     {
-                        EpisodesLoadingRing.IsActive = false;
-                        ErrorText.Text = "No video files found inside this folder. Verify the files exist and are shared publicly ('Anyone with the link').";
-                        ErrorText.Visibility = Visibility.Visible;
-                        return;
+                        hasContent = true;
+                        SubfolderGrid.Visibility = Visibility.Visible;
+
+                        foreach (var f in folders)
+                        {
+                            if (f.Id == null || f.Name == null) continue;
+
+                            // If the subfolder is just called "Season 2", prefix it with the Anime Name so Jikan can find it!
+                            string fullTitle = f.Name.ToLower().Contains(_currentAnimeTitle!.ToLower())
+                                ? f.Name
+                                : $"{_currentAnimeTitle} {f.Name}";
+
+                            Subfolders.Add(new AnimeItemViewModel
+                            {
+                                DriveId = f.Id,
+                                Title = fullTitle
+                            });
+                        }
+
+                        // Fire off the background cover fetcher for the seasons
+                        _ = FetchSubfolderCoversAsync();
                     }
 
-                    int episodeCounter = 1;
-                    foreach (var file in files)
+                    // 2. Process Video Files (Episodes)
+                    if (files != null && files.Count > 0)
                     {
-                        if (file.Name == null || file.Id == null) continue;
+                        hasContent = true;
+                        EpisodesList.Visibility = Visibility.Visible;
 
-                        bool isOva = file.Name.ToLower().Contains("ova");
-                        string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", episodeCounter, isOva);
-
-                        Episodes.Add(new EpisodeItemViewModel
+                        int episodeCounter = 1;
+                        foreach (var file in files)
                         {
-                            FileId = file.Id,
-                            Title = cleanTitle,
-                            StreamUrl = file.WebContentLink
-                        });
+                            if (file.Name == null || file.Id == null) continue;
 
-                        if (!isOva) episodeCounter++;
+                            bool isOva = file.Name.ToLower().Contains("ova");
+                            string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", episodeCounter, isOva);
+
+                            Episodes.Add(new EpisodeItemViewModel
+                            {
+                                FileId = file.Id,
+                                Title = cleanTitle,
+                                StreamUrl = file.WebContentLink
+                            });
+
+                            if (!isOva) episodeCounter++;
+                        }
+                    }
+
+                    if (!hasContent)
+                    {
+                        ErrorText.Text = "This folder is empty. Verify the files exist and are shared publicly ('Anyone with the link').";
+                        ErrorText.Visibility = Visibility.Visible;
                     }
 
                     EpisodesLoadingRing.IsActive = false;
@@ -97,13 +134,38 @@ namespace AnimeStreamer.Views
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
                     EpisodesLoadingRing.IsActive = false;
-                    // Print the exact API crash to the screen
-                    ErrorText.Text = $"Failed to load episodes: {ex.Message}";
+                    ErrorText.Text = $"Failed to load contents: {ex.Message}";
                     ErrorText.Visibility = Visibility.Visible;
                 });
             }
         }
 
+        private async Task FetchSubfolderCoversAsync()
+        {
+            foreach (var sub in Subfolders)
+            {
+                try
+                {
+                    var coverUrl = await JikanService.GetCoverUrlAsync(sub.Title);
+                    if (!string.IsNullOrEmpty(coverUrl))
+                    {
+                        this.DispatcherQueue.TryEnqueue(() => { sub.CoverUrl = coverUrl; });
+                    }
+                }
+                catch { /* Ignore */ }
+                await Task.Delay(400); // Respect Jikan rate limit
+            }
+        }
+
+        // NEW: Handles clicking a Season/Subfolder
+        private void SubfolderGrid_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var clickedSubfolder = (AnimeItemViewModel)e.ClickedItem;
+            // Recursion! We navigate to a NEW FolderPage, passing the subfolder's data
+            this.Frame.Navigate(typeof(FolderPage), clickedSubfolder);
+        }
+
+        // Handles clicking a Video File
         private void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
