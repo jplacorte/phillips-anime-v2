@@ -1,9 +1,11 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.UI.Xaml.Input;
 using LibVLCSharp.Shared;
 using StreamApp.ViewModels;
-using System.Diagnostics;
+using System;
+using System.Linq;
 
 namespace AnimeStreamer.Views
 {
@@ -12,89 +14,105 @@ namespace AnimeStreamer.Views
         private LibVLC? _libVLC;
         private MediaPlayer? _mediaPlayer;
         private string? _streamUrl;
+        private bool _isUserSeeking = false;
 
         public PlayerPage()
         {
             this.InitializeComponent();
-
-            // Wait until the page is fully drawn on the screen to start VLC
             this.Loaded += PlayerPage_Loaded;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
-            base.OnNavigatedTo(e);
-
             if (e.Parameter is EpisodeItemViewModel episode)
             {
                 string apiKey = "AIzaSyCWj6XgWH-JTZghH1e_GiOu4FqP9CxhjEk";
-
-                // BYPASS THE GOOGLE VIRUS SCAN
-                // Added acknowledgeAbuse=true to force the download of large files!
                 _streamUrl = $"https://www.googleapis.com/drive/v3/files/{episode.FileId}?alt=media&key={apiKey}&acknowledgeAbuse=true";
             }
         }
 
         private void PlayerPage_Loaded(object sender, RoutedEventArgs e)
         {
-            // 1. Initialize the VLC Core engine
             Core.Initialize();
-
-            _libVLC = new LibVLC();
-
-            // 2. Route VLC's internal logs to Visual Studio's Output window! 
-            // If it fails to play, check the VS Output tab to see exactly what Google Drive said.
-            _libVLC.Log += (s, ev) => Debug.WriteLine($"[VLC]: {ev.Message}");
-
-            // 3. Setup the Player
+            _libVLC = new LibVLC("--verbose=2");
             _mediaPlayer = new MediaPlayer(_libVLC);
             VideoView.MediaPlayer = _mediaPlayer;
 
-            // 4. Turn off the Loading Ring the exact millisecond the video starts rendering
-            _mediaPlayer.Playing += (s, args) =>
-            {
-                this.DispatcherQueue.TryEnqueue(() =>
-                {
-                    BufferingRing.IsActive = false;
-                    BufferingRing.Visibility = Visibility.Collapsed;
-                });
-            };
+            // Update UI events
+            _mediaPlayer.TimeChanged += (s, args) => DispatcherQueue.TryEnqueue(() => UpdatePosition(args.Time));
+            _mediaPlayer.LengthChanged += (s, args) => DispatcherQueue.TryEnqueue(() => TimelineSlider.Maximum = args.Length);
 
-            // 5. Play the stream
+            _mediaPlayer.Playing += (s, args) => DispatcherQueue.TryEnqueue(() => {
+                BufferingRing.IsActive = false;
+                BufferingRing.Visibility = Visibility.Collapsed;
+                PopulateTracks();
+            });
+
             if (!string.IsNullOrEmpty(_streamUrl))
             {
                 var media = new Media(_libVLC, _streamUrl, FromType.FromLocation);
-
-                // Increase network caching to 3 seconds for heavy MKV files to prevent stuttering
                 media.AddOption(":network-caching=3000");
-
+                media.AddOption(":http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
                 _mediaPlayer.Play(media);
             }
         }
 
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        private void UpdatePosition(long currentTime)
         {
-            base.OnNavigatedFrom(e);
-
-            // CRITICAL: Stop playback and flush memory when you leave the page!
-            if (_mediaPlayer != null)
+            if (!_isUserSeeking && _mediaPlayer != null)
             {
-                _mediaPlayer.Stop();
-                _mediaPlayer.Dispose();
-            }
-
-            if (_libVLC != null)
-            {
-                _libVLC.Dispose();
+                TimelineSlider.Value = currentTime;
+                TimeText.Text = $"{FormatTime(currentTime)} / {FormatTime(_mediaPlayer.Length)}";
             }
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
+        private string FormatTime(long ms)
         {
-            if (this.Frame.CanGoBack)
-            {
-                this.Frame.GoBack();
-            }
+            TimeSpan t = TimeSpan.FromMilliseconds(ms);
+            return t.ToString(@"mm\:ss");
+        }
+
+        private void PopulateTracks()
+        {
+            if (_mediaPlayer == null) return;
+            AudioTrackCombo.ItemsSource = _mediaPlayer.AudioTrackDescription.Select(t => new { t.Id, t.Name }).ToList();
+            SubtitleTrackCombo.ItemsSource = _mediaPlayer.SpuDescription.Select(t => new { t.Id, t.Name }).ToList();
+        }
+
+        // --- Event Handlers for XAML ---
+        private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_mediaPlayer?.IsPlaying == true) _mediaPlayer.Pause();
+            else _mediaPlayer?.Play();
+        }
+
+        private void TimelineSlider_PointerPressed(object sender, PointerRoutedEventArgs e) => _isUserSeeking = true;
+
+        private void TimelineSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            if (_mediaPlayer != null) _mediaPlayer.Time = (long)TimelineSlider.Value;
+            _isUserSeeking = false;
+        }
+
+        private void AudioTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (AudioTrackCombo.SelectedItem is dynamic track && _mediaPlayer != null)
+                _mediaPlayer.SetAudioTrack(track.Id);
+        }
+
+        private void SubtitleTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (SubtitleTrackCombo.SelectedItem is dynamic track && _mediaPlayer != null)
+                _mediaPlayer.SetSpu(track.Id);
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e) => Frame.GoBack();
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            _mediaPlayer?.Stop();
+            _mediaPlayer?.Dispose();
+            _libVLC?.Dispose();
         }
     }
 }

@@ -5,11 +5,28 @@
     xmlns:vlc="using:LibVLCSharp.Platforms.Windows"
     Background="Black">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <vlc:VideoView x:Name="VideoView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
-        <ProgressRing x:Name="BufferingRing" IsActive="True" Foreground="#E50914" Width="60" Height="60" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+        <ProgressRing x:Name="BufferingRing" IsActive="True" Foreground="#E50914" Width="60" Height="60" VerticalAlignment="Center" HorizontalAlignment="Center"/>
 
-        <Button Content="Back" Click="BackButton_Click" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Background="#80000000" Foreground="White" Style="{StaticResource Action}"/>
-    </Grid>
-</Page>
+        <Grid x:Name="ControlsOverlay" VerticalAlignment="Bottom" Background="#B2000000" Padding="20,10" Margin="20" CornerRadius="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Slider x:Name="TimelineSlider" Grid.Row="0" Margin="0,0,0,10" Minimum="0" Maximum="100" StepFrequency="0.1" ThumbToolTipValueConverter="{x:Null}" PointerPressed="TimelineSlider_PointerPressed" PointerReleased="TimelineSlider_PointerReleased"/>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20" VerticalAlignment="Center">
+                <Button x:Name="PlayPauseButton" Content="" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" Background="Transparent"/>
+
+                <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333"/>
+
+                <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333"/>
+
+                <TextBlock x:Name="TimeText" Text="00:00 / 00:00" VerticalAlignment="Center" Foreground="White"/>
+            </StackPanel>
+        </Grid>
+
+        <Button Content="Back" Click="BackButton_Click" VerticalAlignment="Top" HorizontalAlignment
