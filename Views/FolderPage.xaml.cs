@@ -198,7 +198,9 @@ namespace AnimeStreamer.Views
         private void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
-            System.Diagnostics.Debug.WriteLine($"Selected Episode: {clickedEpisode.StreamUrl}");
+
+            // Launch the video player!
+            this.Frame.Navigate(typeof(PlayerPage), clickedEpisode);
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
