@@ -112,13 +112,23 @@ namespace AnimeStreamer.Views
                         hasContent = true;
                         EpisodesList.Visibility = Visibility.Visible;
 
-                        int episodeCounter = 1;
+                        // Check the very first normal episode. If its name contains "00", start counting at 0!
+                        var firstNormalEpisode = files.FirstOrDefault(f => f.Name != null && !f.Name.ToLower().Contains("ova"));
+                        int episodeCounter = (firstNormalEpisode != null && firstNormalEpisode.Name.Contains("00")) ? 0 : 1;
+
+                        // Create a brand new, separate counter just for OVAs that always starts at 1
+                        int ovaCounter = 1;
+
                         foreach (var file in files)
                         {
                             if (file.Name == null || file.Id == null) continue;
 
                             bool isOva = file.Name.ToLower().Contains("ova");
-                            string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", episodeCounter, isOva);
+
+                            // Pick which counter to use based on whether it's an OVA or not
+                            int currentNumber = isOva ? ovaCounter : episodeCounter;
+
+                            string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", currentNumber, isOva);
 
                             Episodes.Add(new EpisodeItemViewModel
                             {
@@ -127,7 +137,15 @@ namespace AnimeStreamer.Views
                                 StreamUrl = file.WebContentLink
                             });
 
-                            if (!isOva) episodeCounter++;
+                            // Increment the correct counter so the next loop gets the right number
+                            if (isOva)
+                            {
+                                ovaCounter++;
+                            }
+                            else
+                            {
+                                episodeCounter++;
+                            }
                         }
                     }
 
