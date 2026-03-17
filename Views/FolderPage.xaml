@@ -16,13 +16,15 @@
 
         <TextBlock x:Name="AnimeTitleText" Text="Anime Title" FontSize="32" FontWeight="Bold" Foreground="White" Grid.Row="1" Margin="0,0,0,20"/>
 
-        <ProgressRing x:Name="EpisodesLoadingRing" IsActive="False" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E50914"/>
+        <ProgressRing x:Name="EpisodesLoadingRing" IsActive="False" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E50914" IsHitTestVisible="False"/>
+
+        <TextBlock x:Name="ErrorText" Foreground="#E50914" FontSize="16" TextWrapping="Wrap" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
 
         <ListView x:Name="EpisodesList" Grid.Row="2" SelectionMode="Single" ItemClick="EpisodesList_ItemClick" IsItemClickEnabled="True">
             <ListView.ItemTemplate>
-                <DataTemplate>
+                <DataTemplate x:DataType="local:EpisodeItemViewModel">
                     <Grid Padding="12" BorderBrush="#333333" BorderThickness="0,0,0,1">
-                        <TextBlock Text="{Binding Title}" Foreground="White" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="16" VerticalAlignment="Center"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

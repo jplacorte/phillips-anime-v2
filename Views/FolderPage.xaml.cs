@@ -53,6 +53,7 @@ namespace AnimeStreamer.Views
             if (string.IsNullOrEmpty(_currentFolderId)) return;
 
             EpisodesLoadingRing.IsActive = true;
+            ErrorText.Visibility = Visibility.Collapsed; // Hide any previous errors
             Episodes.Clear();
 
             try
@@ -61,26 +62,33 @@ namespace AnimeStreamer.Views
 
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (files != null)
+                    // CHECK: Did Google Drive return an empty list?
+                    if (files == null || files.Count == 0)
                     {
-                        int episodeCounter = 1;
-                        foreach (var file in files)
-                        {
-                            if (file.Name == null || file.Id == null) continue;
-
-                            bool isOva = file.Name.ToLower().Contains("ova");
-                            string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", episodeCounter, isOva);
-
-                            Episodes.Add(new EpisodeItemViewModel
-                            {
-                                FileId = file.Id,
-                                Title = cleanTitle,
-                                StreamUrl = file.WebContentLink
-                            });
-
-                            if (!isOva) episodeCounter++;
-                        }
+                        EpisodesLoadingRing.IsActive = false;
+                        ErrorText.Text = "No video files found inside this folder. Verify the files exist and are shared publicly ('Anyone with the link').";
+                        ErrorText.Visibility = Visibility.Visible;
+                        return;
                     }
+
+                    int episodeCounter = 1;
+                    foreach (var file in files)
+                    {
+                        if (file.Name == null || file.Id == null) continue;
+
+                        bool isOva = file.Name.ToLower().Contains("ova");
+                        string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", episodeCounter, isOva);
+
+                        Episodes.Add(new EpisodeItemViewModel
+                        {
+                            FileId = file.Id,
+                            Title = cleanTitle,
+                            StreamUrl = file.WebContentLink
+                        });
+
+                        if (!isOva) episodeCounter++;
+                    }
+
                     EpisodesLoadingRing.IsActive = false;
                 });
             }
@@ -89,7 +97,9 @@ namespace AnimeStreamer.Views
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
                     EpisodesLoadingRing.IsActive = false;
-                    System.Diagnostics.Debug.WriteLine($"Failed to load episodes: {ex.Message}");
+                    // Print the exact API crash to the screen
+                    ErrorText.Text = $"Failed to load episodes: {ex.Message}";
+                    ErrorText.Visibility = Visibility.Visible;
                 });
             }
         }
