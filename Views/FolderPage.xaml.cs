@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+// 1. ADD THIS NAMESPACE FOR NAVIGATION:
+using Microsoft.UI.Xaml.Navigation;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using StreamApp.Services;
@@ -12,15 +14,27 @@ namespace AnimeStreamer.Views
         private readonly GoogleDriveService _driveService;
         public ObservableCollection<EpisodeItemViewModel> Episodes { get; } = new();
 
-        // Added '?' to clear the CS8618 warnings
         private string? _currentFolderId;
         private string? _currentAnimeTitle;
 
         public FolderPage()
         {
-            this.InitializeComponent(); // The compiler will now find this!
+            this.InitializeComponent();
             _driveService = new GoogleDriveService();
             EpisodesList.ItemsSource = Episodes;
+        }
+
+        // 2. ADD THIS METHOD TO CATCH THE INCOMING DATA:
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+
+            // Check if the data passed during navigation is our AnimeItemViewModel
+            if (e.Parameter is AnimeItemViewModel selectedAnime)
+            {
+                // Feed it directly into your loading logic!
+                LoadEpisodes(selectedAnime);
+            }
         }
 
         public void LoadEpisodes(AnimeItemViewModel anime)
@@ -28,6 +42,7 @@ namespace AnimeStreamer.Views
             _currentFolderId = anime.DriveId;
             _currentAnimeTitle = anime.Title;
 
+            // This will change the text from "Anime Title" to the real name!
             AnimeTitleText.Text = anime.Title;
 
             FetchEpisodesAsync();
@@ -51,7 +66,6 @@ namespace AnimeStreamer.Views
                         int episodeCounter = 1;
                         foreach (var file in files)
                         {
-                            // Safety checks to ensure we don't pass nulls
                             if (file.Name == null || file.Id == null) continue;
 
                             bool isOva = file.Name.ToLower().Contains("ova");
@@ -75,7 +89,7 @@ namespace AnimeStreamer.Views
                 this.DispatcherQueue.TryEnqueue(() =>
                 {
                     EpisodesLoadingRing.IsActive = false;
-                    System.Diagnostics.Debug.WriteLine($"Failed to load episodes: {ex.Message}"); // Clears the CS0168 warning
+                    System.Diagnostics.Debug.WriteLine($"Failed to load episodes: {ex.Message}");
                 });
             }
         }
@@ -88,7 +102,6 @@ namespace AnimeStreamer.Views
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            // Simple logic to go back to the previous page
             if (this.Frame.CanGoBack)
             {
                 this.Frame.GoBack();
