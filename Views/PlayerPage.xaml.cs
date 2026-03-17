@@ -22,6 +22,12 @@ namespace AnimeStreamer.Views
             this.Loaded += PlayerPage_Loaded;
         }
 
+        public class TrackItem
+        {
+            public int Id { get; set; }
+            public string Name { get; set; } = string.Empty;
+        }
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             if (e.Parameter is EpisodeItemViewModel episode)
@@ -41,7 +47,7 @@ namespace AnimeStreamer.Views
             // Update UI events
             _mediaPlayer.TimeChanged += (s, args) => DispatcherQueue.TryEnqueue(() => UpdatePosition(args.Time));
             _mediaPlayer.LengthChanged += (s, args) => DispatcherQueue.TryEnqueue(() => TimelineSlider.Maximum = args.Length);
-
+            
             _mediaPlayer.Playing += (s, args) => DispatcherQueue.TryEnqueue(() => {
                 BufferingRing.IsActive = false;
                 BufferingRing.Visibility = Visibility.Collapsed;
@@ -86,27 +92,41 @@ namespace AnimeStreamer.Views
             else _mediaPlayer?.Play();
         }
 
-        private void TimelineSlider_PointerPressed(object sender, PointerRoutedEventArgs e) => _isUserSeeking = true;
+        private void TimelineSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            _isUserSeeking = true;
+        }
 
         private void TimelineSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
-            if (_mediaPlayer != null) _mediaPlayer.Time = (long)TimelineSlider.Value;
+            if (_mediaPlayer != null)
+            {
+                _mediaPlayer.Time = (long)TimelineSlider.Value;
+            }
             _isUserSeeking = false;
         }
 
         private void AudioTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (AudioTrackCombo.SelectedItem is dynamic track && _mediaPlayer != null)
+            if (AudioTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
+            {
                 _mediaPlayer.SetAudioTrack(track.Id);
+            }
         }
 
         private void SubtitleTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (SubtitleTrackCombo.SelectedItem is dynamic track && _mediaPlayer != null)
+            if (SubtitleTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
+            {
                 _mediaPlayer.SetSpu(track.Id);
+            }
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e) => Frame.GoBack();
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Frame.GoBack();
+        }
+
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {

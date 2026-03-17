@@ -29,4 +29,6 @@
             </StackPanel>
         </Grid>
 
-        <Button Content="Back" Click="BackButton_Click" VerticalAlignment="Top" HorizontalAlignment
+        <Button Content="Back" Click="BackButton_Click" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Background="#80000000" Style="{StaticResource Action}"/>
+    </Grid>
+</Page>
