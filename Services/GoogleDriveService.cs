@@ -28,6 +28,8 @@ namespace StreamApp.Services
             request.OrderBy = "name";
 
             var result = await request.ExecuteAsync();
+
+            // FIXED: Remove dangerous (List<File>) cast and return raw IList
             return result.Files;
         }
 
