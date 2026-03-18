@@ -1,6 +1,11 @@
 <Solution>
+    <Configurations>
+        <Platform Name="Any CPU" />
+        <Platform Name="x64" />
+    </Configurations>
     <Project Path="AnimeStreamer.csproj">
-        <Platform Solution="Debug|*" Project="x64" />
+        <BuildType Solution="Debug|x64" Project="Release" />
+        <Platform Project="x64" />
         <Deploy />
     </Project>
 </Solution>

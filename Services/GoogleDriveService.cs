@@ -20,10 +20,12 @@ namespace AnimeStreamer.Services
 
         public GoogleDriveService()
         {
-            #pragma warning disable CS0618
-            _credential = GoogleCredential.FromFile("service-account.json")
-                                          .CreateScoped(DriveService.ScopeConstants.DriveReadonly); // DriveReadonly is safer!
-            #pragma warning restore CS0618 
+            string appFolder = System.AppContext.BaseDirectory;
+            string keyPath = System.IO.Path.Combine(appFolder, "service-account.json");
+#pragma warning disable CS0618
+            _credential = GoogleCredential.FromFile(keyPath)
+                                          .CreateScoped(DriveService.ScopeConstants.DriveReadonly);
+#pragma warning restore CS0618
 
             _service = new DriveService(new BaseClientService.Initializer()
             {
