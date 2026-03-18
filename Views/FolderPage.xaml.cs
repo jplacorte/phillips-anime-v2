@@ -73,7 +73,7 @@ namespace AnimeStreamer.Views
                     if (folders != null && folders.Count > 0)
                     {
                         // Define the list of folder names to hide
-                        var hiddenFolders = new[] { "specials", "special", "fanart", "fanarts", "extras", "extra" };
+                        var hiddenFolders = new[] { "specials", "special", "fanart", "fanarts", "extras", "extra", "extrafanart", "extra fanart" };
 
                         foreach (var f in folders)
                         {
@@ -153,6 +153,14 @@ namespace AnimeStreamer.Views
                     {
                         ErrorText.Text = "This folder is empty. Verify the files exist and are shared publicly ('Anyone with the link').";
                         ErrorText.Visibility = Visibility.Visible;
+                    }
+
+                    if (Episodes.Count > 1)
+                    {
+                        for (int i = 0; i < Episodes.Count - 1; i++)
+                        {
+                            Episodes[i].NextEpisode = Episodes[i + 1];
+                        }
                     }
 
                     EpisodesLoadingRing.IsActive = false;

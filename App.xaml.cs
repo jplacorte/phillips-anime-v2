@@ -1,4 +1,6 @@
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.UI.Windowing; // Make sure to add this at the top!
+using WinRT.Interop;
 
 namespace AnimeStreamer
 {
@@ -26,22 +28,27 @@ namespace AnimeStreamer
         /// will be used such as when the application is launched to open a specific file.
         /// </summary>
         /// <param name="e">Details about the launch request and process.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            window ??= new Window();
+            MainWindow = new Window(); // Or new MainWindow() depending on your template
 
-            // store on the static property for global access
-            MainWindow = window;
+            // 1. Set the Title
+            MainWindow.Title = "Phillips Anime";
 
-            if (window.Content is not Frame rootFrame)
-            {
-                rootFrame = new Frame();
-                rootFrame.NavigationFailed += OnNavigationFailed;
-                window.Content = rootFrame;
-            }
+            // 2. Set the App Icon
+            var hwnd = WindowNative.GetWindowHandle(MainWindow);
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
 
-            _ = rootFrame.Navigate(typeof(MainPage), e.Arguments);
-            window.Activate();
+            // Note: Make sure you converted icon.png to icon.ico in your Assets folder!
+            appWindow.SetIcon("Assets\\icon.ico");
+
+            // Initialize the main frame and navigate
+            Frame rootFrame = new Frame();
+            rootFrame.Navigate(typeof(Views.MainPage));
+            MainWindow.Content = rootFrame;
+
+            MainWindow.Activate();
         }
 
         /// <summary>

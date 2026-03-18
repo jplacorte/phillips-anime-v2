@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:StreamApp.ViewModels"
+    xmlns:helpers="using:AnimeStreamer.Helpers" 
     Background="#0F0F0F">
 
     <Grid>
@@ -22,7 +23,9 @@
                       Margin="24">
                 <GridView.ItemTemplate>
                     <DataTemplate x:DataType="local:AnimeItemViewModel">
-                        <Border Width="200" Height="300" Margin="10" CornerRadius="8" Background="Transparent">
+
+                        <Border Width="200" Height="300" Margin="10" CornerRadius="8" Background="Transparent" helpers:HoverEffect.IsEnabled="True">
+
                             <Grid>
                                 <Image Source="{x:Bind CoverUrl, Mode=OneWay}" Stretch="UniformToFill" />
 
@@ -35,10 +38,16 @@
                                     </Border.Background>
                                 </Border>
 
-                                <TextBlock Text="{x:Bind Title}"
-                                           Foreground="White" FontWeight="SemiBold"
-                                           VerticalAlignment="Bottom" Margin="10"
-                                           TextWrapping="WrapWholeWords" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{x:Bind Title}" 
+           Foreground="White" 
+           FontWeight="SemiBold" 
+           VerticalAlignment="Bottom" 
+           Margin="10" 
+           TextWrapping="WrapWholeWords" 
+           MaxLines="2" 
+           TextTrimming="CharacterEllipsis"
+           ToolTipService.ToolTip="{x:Bind Title}" 
+           ToolTipService.Placement="Mouse"/>
                             </Grid>
                         </Border>
                     </DataTemplate>

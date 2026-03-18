@@ -5,30 +5,73 @@
     xmlns:vlc="using:LibVLCSharp.Platforms.Windows"
     Background="Black">
 
-    <Grid x:Name="RootGrid">
-        <vlc:VideoView x:Name="VideoView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+	<Page.KeyboardAccelerators>
+		<KeyboardAccelerator Key="Space" Invoked="Accelerator_PlayPause"/>
+		<KeyboardAccelerator Key="F" Invoked="Accelerator_Fullscreen"/>
+		<KeyboardAccelerator Key="M" Invoked="Accelerator_Mute"/>
+		<KeyboardAccelerator Key="Right" Invoked="Accelerator_Forward"/>
+		<KeyboardAccelerator Key="Left" Invoked="Accelerator_Backward"/>
+		<KeyboardAccelerator Key="Up" Invoked="Accelerator_VolUp"/>
+		<KeyboardAccelerator Key="Down" Invoked="Accelerator_VolDown"/>
+		<KeyboardAccelerator Key="N" Invoked="Accelerator_Next"/>
+		<KeyboardAccelerator Key="Escape" Invoked="Accelerator_Escape"/>
+	</Page.KeyboardAccelerators>
 
-        <ProgressRing x:Name="BufferingRing" IsActive="True" Foreground="#E50914" Width="60" Height="60" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+	<Grid x:Name="RootGrid" PointerMoved="RootGrid_PointerMoved" Background="Transparent">
 
-        <Grid x:Name="ControlsOverlay" VerticalAlignment="Bottom" Background="#B2000000" Padding="20,10" Margin="20" CornerRadius="8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+		<vlc:VideoView x:Name="VideoView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DoubleTapped="VideoView_DoubleTapped" />
 
-            <Slider x:Name="TimelineSlider" Grid.Row="0" Margin="0,0,0,10" Minimum="0" Maximum="100" StepFrequency="0.1" ThumbToolTipValueConverter="{x:Null}" PointerPressed="TimelineSlider_PointerPressed" PointerReleased="TimelineSlider_PointerReleased"/>
+		<ProgressRing x:Name="BufferingRing" IsActive="True" Foreground="#E50914" Width="60" Height="60" VerticalAlignment="Center" HorizontalAlignment="Center"/>
 
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20" VerticalAlignment="Center">
-                <Button x:Name="PlayPauseButton" Content="" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" Background="Transparent"/>
+		<StackPanel x:Name="ErrorPanel" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" Background="#B2000000" Padding="20" CornerRadius="8">
+			<TextBlock Text="Stream Unavailable 😥" FontSize="24" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+			<TextBlock Text="Failed to load the video. Please try again later." Foreground="LightGray" TextAlignment="Center" Margin="0,10,0,0"/>
+			<Button Content="Go Back" Click="BackButton_Click" AllowFocusOnInteraction="False" HorizontalAlignment="Center" Margin="0,20,0,0"/>
+		</StackPanel>
 
-                <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333"/>
+		<Grid x:Name="UIOverlay" Background="Transparent">
+			<Border VerticalAlignment="Top" Height="100" IsHitTestVisible="False">
+				<Border.Background>
+					<LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+						<GradientStop Color="#CC000000" Offset="0.0"/>
+						<GradientStop Color="Transparent" Offset="1.0"/>
+					</LinearGradientBrush>
+				</Border.Background>
+			</Border>
 
-                <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333"/>
+			<Button Content="Back" Click="BackButton_Click" AllowFocusOnInteraction="False" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Background="#80000000" Foreground="White" Style="{StaticResource Action}"/>
 
-                <TextBlock x:Name="TimeText" Text="00:00 / 00:00" VerticalAlignment="Center" Foreground="White"/>
-            </StackPanel>
-        </Grid>
+			<TextBlock x:Name="EpisodeTitleText" Text="Loading..." FontSize="22" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,28,0,0" IsHitTestVisible="False"/>
 
-        <Button Content="Back" Click="BackButton_Click" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Background="#80000000" Style="{StaticResource Action}"/>
-    </Grid>
+			<Grid VerticalAlignment="Bottom" Background="#B2000000" Padding="20,10" Margin="20" CornerRadius="8">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
+
+				<Slider x:Name="TimelineSlider" Grid.Row="0" Margin="0,0,0,10" Minimum="0" Maximum="100" StepFrequency="1000"
+                        PointerMoved="TimelineSlider_PointerMoved" AllowFocusOnInteraction="False" ToolTipService.Placement="Top">
+					<ToolTipService.ToolTip>
+						<ToolTip x:Name="SliderToolTip" Content="00:00" />
+					</ToolTipService.ToolTip>
+				</Slider>
+
+				<Grid Grid.Row="1">
+					<StackPanel Orientation="Horizontal" Spacing="20" VerticalAlignment="Center" HorizontalAlignment="Left">
+						<Button x:Name="PlayPauseButton" Content="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
+						<Button x:Name="NextButton" Content="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="NextButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
+
+						<ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+						<ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+					</StackPanel>
+					<TextBlock x:Name="TimeText" Text="00:00 / 00:00" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White"/>
+					<StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
+						<Button x:Name="MuteButton" Content="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Click="MuteButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White" Margin="0,0,5,0"/>
+						<Slider x:Name="VolumeSlider" Width="100" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" FocusVisualMargin="0" AllowFocusOnInteraction="False" ValueChanged="VolumeSlider_ValueChanged"/>
+						<Button x:Name="FullscreenButton" Content="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="FullscreenButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
+					</StackPanel>
+				</Grid>
+			</Grid>
+		</Grid>
+	</Grid>
 </Page>
