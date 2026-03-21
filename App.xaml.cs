@@ -1,5 +1,8 @@
+using System;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Windowing; // Make sure to add this at the top!
+using Microsoft.UI.Windowing;
 using WinRT.Interop;
 
 namespace AnimeStreamer
@@ -27,10 +30,10 @@ namespace AnimeStreamer
         /// Invoked when the application is launched normally by the end user.  Other entry points
         /// will be used such as when the application is launched to open a specific file.
         /// </summary>
-        /// <param name="e">Details about the launch request and process.</param>
+        /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            MainWindow = new Window(); // Or new MainWindow() depending on your template
+            MainWindow = new Window();
 
             // 1. Set the Title
             MainWindow.Title = "Phillips Anime";
@@ -40,8 +43,39 @@ namespace AnimeStreamer
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
 
-            // Note: Make sure you converted icon.png to icon.ico in your Assets folder!
             appWindow.SetIcon("Assets\\icon.ico");
+
+            // --- NEW BLOCK: Force Dark Mode Title Bar & Window Control Buttons ---
+            if (Microsoft.UI.Windowing.AppWindowTitleBar.IsCustomizationSupported())
+            {
+                var titleBar = appWindow.TitleBar;
+
+                // Create the exact #0F0F0F color to match your app's background
+                var darkColor = Windows.UI.Color.FromArgb(255, 15, 15, 15);
+                var hoverColor = Windows.UI.Color.FromArgb(255, 40, 40, 40); // Slightly lighter for hovering
+                var whiteColor = Microsoft.UI.Colors.White;
+                var grayColor = Microsoft.UI.Colors.DimGray;
+
+                // Color the Main Title Bar
+                titleBar.BackgroundColor = darkColor;
+                titleBar.ForegroundColor = whiteColor;
+                titleBar.InactiveBackgroundColor = darkColor;
+                titleBar.InactiveForegroundColor = grayColor;
+
+                // Color the Maximize, Minimize, and Close Buttons
+                titleBar.ButtonBackgroundColor = darkColor;
+                titleBar.ButtonForegroundColor = whiteColor;
+
+                titleBar.ButtonHoverBackgroundColor = hoverColor;
+                titleBar.ButtonHoverForegroundColor = whiteColor;
+
+                titleBar.ButtonPressedBackgroundColor = darkColor;
+                titleBar.ButtonPressedForegroundColor = whiteColor;
+
+                titleBar.ButtonInactiveBackgroundColor = darkColor;
+                titleBar.ButtonInactiveForegroundColor = grayColor;
+            }
+            // --- END NEW BLOCK ---
 
             // Initialize the main frame and navigate
             Frame rootFrame = new Frame();
