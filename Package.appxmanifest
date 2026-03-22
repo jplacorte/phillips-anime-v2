@@ -6,7 +6,7 @@
   xmlns:uap18="http://schemas.microsoft.com/appx/manifest/uap/windows10/18"
   IgnorableNamespaces="uap rescap uap18">
 
-	<Identity Name="3c594c51-edb7-439e-ba73-123dd62ed0ed" Publisher="CN=Jaypee Lacorte" Version="1.0.3.0" />
+	<Identity Name="3c594c51-edb7-439e-ba73-123dd62ed0ed" Publisher="CN=Jaypee Lacorte" Version="1.0.6.0" />
 
 	<Properties>
 		<DisplayName>Phillips Anime</DisplayName>

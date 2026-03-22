@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using StreamApp.Services;
 using AnimeStreamer.Services;
 using StreamApp.ViewModels;
+using System.Linq;
 
 namespace AnimeStreamer.Views
 {
@@ -13,7 +14,6 @@ namespace AnimeStreamer.Views
     {
         private readonly GoogleDriveService _driveService = new GoogleDriveService();
 
-        // We now have TWO collections!
         public ObservableCollection<EpisodeItemViewModel> Episodes { get; } = new();
         public ObservableCollection<AnimeItemViewModel> Subfolders { get; } = new();
 
@@ -72,25 +72,18 @@ namespace AnimeStreamer.Views
                     // 1. Process Subfolders (Seasons)
                     if (folders != null && folders.Count > 0)
                     {
-                        // Define the list of folder names to hide
                         var hiddenFolders = new[] { "specials", "special", "fanart", "fanarts", "extras", "extra", "extrafanart", "extra fanart" };
 
                         foreach (var f in folders)
                         {
                             if (f.Id == null || f.Name == null) continue;
 
-                            // Check if the current folder's name matches any in the hidden list
                             bool shouldHide = hiddenFolders.Contains(f.Name.ToLower());
-
-                            if (shouldHide)
-                            {
-                                continue; // Skip this folder and move to the next one
-                            }
+                            if (shouldHide) continue;
 
                             hasContent = true;
                             SubfolderGrid.Visibility = Visibility.Visible;
 
-                            // If the subfolder is just called "Season 2", prefix it with the Anime Name so Jikan can find it!
                             string fullTitle = f.Name.ToLower().Contains(_currentAnimeTitle!.ToLower())
                                 ? f.Name
                                 : $"{_currentAnimeTitle} {f.Name}";
@@ -102,7 +95,6 @@ namespace AnimeStreamer.Views
                             });
                         }
 
-                        // Fire off the background cover fetcher for the seasons
                         _ = FetchSubfolderCoversAsync();
                     }
 
@@ -112,11 +104,8 @@ namespace AnimeStreamer.Views
                         hasContent = true;
                         EpisodesList.Visibility = Visibility.Visible;
 
-                        // Check the very first normal episode. If its name contains "00", start counting at 0!
                         var firstNormalEpisode = files.FirstOrDefault(f => f.Name != null && !f.Name.ToLower().Contains("ova"));
                         int episodeCounter = (firstNormalEpisode != null && firstNormalEpisode.Name.Contains("00")) ? 0 : 1;
-
-                        // Create a brand new, separate counter just for OVAs that always starts at 1
                         int ovaCounter = 1;
 
                         foreach (var file in files)
@@ -125,10 +114,34 @@ namespace AnimeStreamer.Views
 
                             bool isOva = file.Name.ToLower().Contains("ova");
 
-                            // Pick which counter to use based on whether it's an OVA or not
-                            int currentNumber = isOva ? ovaCounter : episodeCounter;
+                            // Scan for decimals (e.g. 1.5), explicitly ignoring 5.1 or 7.1 surround sound tags
+                            var matches = System.Text.RegularExpressions.Regex.Matches(file.Name, @"(?<!\d)\d+\.\d+(?!\d)");
+                            var validDecimal = matches.Cast<System.Text.RegularExpressions.Match>()
+                                                      .FirstOrDefault(m => m.Value != "5.1" && m.Value != "7.1");
 
-                            string cleanTitle = EpisodeNameParser.FormatEpisodeName(_currentAnimeTitle ?? "Unknown", currentNumber, isOva);
+                            bool isDecimalEpisode = validDecimal != null;
+                            string episodeNumString;
+
+                            if (isDecimalEpisode)
+                            {
+                                // Keep the exact number formatting found in the file name
+                                episodeNumString = validDecimal!.Value;
+
+                                // If the decimal is single-digit (e.g. "1.5"), pad it to "01.5" to match E01 format
+                                if (episodeNumString.IndexOf('.') == 1)
+                                {
+                                    episodeNumString = "0" + episodeNumString;
+                                }
+                            }
+                            else
+                            {
+                                // Use "D2" to automatically add leading zeros to 1-9 (e.g., 01, 02, 03)
+                                episodeNumString = (isOva ? ovaCounter : episodeCounter).ToString("D2");
+                            }
+
+                            // FORMAT: "Title - E01" or "Title - OVA01"
+                            string prefix = isOva ? "OVA" : "E";
+                            string cleanTitle = $"{_currentAnimeTitle} - {prefix}{episodeNumString}";
 
                             Episodes.Add(new EpisodeItemViewModel
                             {
@@ -137,14 +150,11 @@ namespace AnimeStreamer.Views
                                 StreamUrl = file.WebContentLink
                             });
 
-                            // Increment the correct counter so the next loop gets the right number
-                            if (isOva)
+                            // Only increment the counter if it was a normal, whole-number episode!
+                            if (!isDecimalEpisode)
                             {
-                                ovaCounter++;
-                            }
-                            else
-                            {
-                                episodeCounter++;
+                                if (isOva) ovaCounter++;
+                                else episodeCounter++;
                             }
                         }
                     }
@@ -155,6 +165,7 @@ namespace AnimeStreamer.Views
                         ErrorText.Visibility = Visibility.Visible;
                     }
 
+                    // Link the Next Episodes together for the Auto-Play feature
                     if (Episodes.Count > 1)
                     {
                         for (int i = 0; i < Episodes.Count - 1; i++)
@@ -190,26 +201,20 @@ namespace AnimeStreamer.Views
                     }
                 }
                 catch { /* Ignore */ }
-                await Task.Delay(400); // Respect Jikan rate limit
+                await Task.Delay(400);
             }
         }
 
-        // NEW: Handles clicking a Season/Subfolder
         private void SubfolderGrid_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedSubfolder = (AnimeItemViewModel)e.ClickedItem;
-            // Recursion! We navigate to a NEW FolderPage, passing the subfolder's data
             this.Frame.Navigate(typeof(FolderPage), clickedSubfolder);
         }
 
-        // Handles clicking a Video File
         private void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
-
-            // Show the loading state
             LoadingOverlay.Visibility = Visibility.Visible;
-
             this.Frame.Navigate(typeof(PlayerPage), clickedEpisode);
         }
 
