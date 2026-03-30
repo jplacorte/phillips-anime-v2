@@ -1,15 +1,10 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Input;
-using LibVLCSharp.Shared;
-using LibVLCSharp.Platforms.Windows;
-using StreamApp.ViewModels;
 using AnimeStreamer.Services;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
+using LibVLCSharp.Platforms.Windows;
+using LibVLCSharp.Shared;
 using Microsoft.UI.Input;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
+using StreamApp.ViewModels;
 
 namespace AnimeStreamer.Views
 {
@@ -19,6 +14,7 @@ namespace AnimeStreamer.Views
         private LibVLC? _libVLC;
         private MediaPlayer? _mediaPlayer;
         private bool _isUserSeeking = false;
+        private static bool _isVlcInitialized = false;
 
         private EpisodeItemViewModel? _currentEpisode;
         private LocalProxyServer? _proxyServer;
@@ -33,7 +29,13 @@ namespace AnimeStreamer.Views
 
         public PlayerPage()
         {
-            Core.Initialize();
+            // CRITICAL FIX: Only initialize VLC once per app lifecycle!
+            if (!_isVlcInitialized)
+            {
+                Core.Initialize();
+                _isVlcInitialized = true;
+            }
+
             this.InitializeComponent();
             VideoView.Initialized += VideoView_Initialized;
 
@@ -62,6 +64,7 @@ namespace AnimeStreamer.Views
         {
             base.OnNavigatedTo(e);
 
+            // OPTIMIZATION: Instantly remove all previous video players from the history stack!
             var backStack = this.Frame.BackStack;
             for (int i = backStack.Count - 1; i >= 0; i--)
             {
@@ -96,13 +99,13 @@ namespace AnimeStreamer.Views
 
         private void Accelerator_Forward(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (_mediaPlayer != null) _mediaPlayer.Time += 10000;
+            if (_mediaPlayer != null) _mediaPlayer.Time += 10000; // Skip 10s
             args.Handled = true;
         }
 
         private void Accelerator_Backward(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (_mediaPlayer != null) _mediaPlayer.Time -= 10000;
+            if (_mediaPlayer != null) _mediaPlayer.Time -= 10000; // Rewind 10s
             args.Handled = true;
         }
 
@@ -193,52 +196,61 @@ namespace AnimeStreamer.Views
         }
 
         // --- INITIALIZATION ---
-#pragma warning disable CS8622 
+#pragma warning disable CS8622
         private async void VideoView_Initialized(object? sender, InitializedEventArgs e)
         {
+            // ONLY pass the WinUI SwapChain options. Remove the dangerous hardware/seek flags.
+            // LibVLC will safely negotiate the best hardware decoding natively.
             var options = e.SwapChainOptions.ToList();
-            options.Add("--no-lua");
-
-            // Performance & Hardware Decoding Options
-            options.Add("--avcodec-hw=any");     // Let VLC negotiate safely with WinUI
-            options.Add("--drop-late-frames");   // Drop frames instead of buffering
-            options.Add("--skip-frames");        // Skip B-frames during high load
-            options.Add("--fast-seek");          // Makes timeline seeking instant
 
             _libVLC = new LibVLC(options.ToArray());
             _mediaPlayer = new MediaPlayer(_libVLC);
 
+            // Assign immediately on the UI thread, no TryEnqueue needed
+            VideoView.MediaPlayer = _mediaPlayer;
+
             _mediaPlayer.TimeChanged += (s, args) => DispatcherQueue.TryEnqueue(() => UpdatePosition(args.Time));
             _mediaPlayer.LengthChanged += (s, args) => DispatcherQueue.TryEnqueue(() => TimelineSlider.Maximum = args.Length);
 
-            _mediaPlayer.Playing += (s, args) => DispatcherQueue.TryEnqueue(() => {
-                BufferingRing.IsActive = false;
-                BufferingRing.Visibility = Visibility.Collapsed;
-                PopulateTracks();
-                PopulateChapters();
-                _idleTimer.Start();
-                PlayPauseButton.Content = "\xE769";
-            });
+            _mediaPlayer.Playing += async (s, args) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    BufferingRing.IsActive = false;
+                    BufferingRing.Visibility = Visibility.Collapsed;
+                    _idleTimer.Start();
+                    PlayPauseButton.Content = "\xE769";
+                });
 
-            _mediaPlayer.Paused += (s, args) => DispatcherQueue.TryEnqueue(() => {
+                // CRITICAL FIX: Wait 1 second for the VLC decoders to fully spin up 
+                // before asking the C++ core for track and chapter memory pointers!
+                await Task.Delay(1000);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    PopulateTracks();
+                    PopulateChapters();
+                });
+            };
+
+            _mediaPlayer.Paused += (s, args) => DispatcherQueue.TryEnqueue(() =>
+            {
                 PlayPauseButton.Content = "\xE768";
             });
 
-            _mediaPlayer.EncounteredError += (s, args) => DispatcherQueue.TryEnqueue(() => {
+            _mediaPlayer.EncounteredError += (s, args) => DispatcherQueue.TryEnqueue(() =>
+            {
                 BufferingRing.IsActive = false;
                 BufferingRing.Visibility = Visibility.Collapsed;
                 ErrorPanel.Visibility = Visibility.Visible;
             });
 
-            // Automatically updates the UI when the video naturally plays into the next chapter
-            _mediaPlayer.ChapterChanged += (s, args) => DispatcherQueue.TryEnqueue(() => {
+            _mediaPlayer.ChapterChanged += (s, args) => DispatcherQueue.TryEnqueue(() =>
+            {
                 if (ChapterCombo.ItemsSource != null && args.Chapter < ChapterCombo.Items.Count)
                 {
                     ChapterCombo.SelectedIndex = args.Chapter;
                 }
             });
-
-            DispatcherQueue.TryEnqueue(() => VideoView.MediaPlayer = _mediaPlayer);
 
             if (_currentEpisode != null)
             {
@@ -254,13 +266,11 @@ namespace AnimeStreamer.Views
 
                     var media = new Media(_libVLC, proxyUrl, FromType.FromLocation);
 
-                    // Streaming & Caching Options
-                    media.AddOption(":network-caching=1000");
-                    media.AddOption(":file-caching=1000");
-                    media.AddOption(":live-caching=1000");
-                    media.AddOption(":clock-jitter=0");
-                    media.AddOption(":clock-synchro=0");
-                    media.AddOption(":ipv4");
+                    // OPTIMIZATION: Aggressive low-latency flags for high-speed internet!
+                    media.AddOption(":network-caching=300");  // Start playing after just 0.3 seconds!
+                    media.AddOption(":file-caching=300");     // Treat local proxy as a fast file
+                    media.AddOption(":clock-jitter=0");       // Disable artificial jitter delays
+                    media.AddOption(":clock-synchro=0");      // Disable strict clock sync on startup
 
                     _mediaPlayer.Play(media);
                 }
@@ -268,6 +278,58 @@ namespace AnimeStreamer.Views
             }
         }
 #pragma warning restore CS8622
+
+        private void PopulateChapters()
+        {
+            try
+            {
+                if (_mediaPlayer == null) return;
+
+                // CRITICAL FIX: Prevent native crash by checking if the media actually has Titles first
+                if (_mediaPlayer.TitleCount > 0)
+                {
+                    int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
+                    var chapters = _mediaPlayer.ChapterDescription(currentTitle);
+
+                    if (chapters != null && chapters.Length > 0)
+                    {
+                        var chapterList = chapters.Select((c, index) => new TrackItem
+                        {
+                            Id = index,
+                            Name = string.IsNullOrEmpty(c.Name) ? $"Chapter {index + 1}" : c.Name
+                        }).ToList();
+
+                        ChapterCombo.ItemsSource = chapterList;
+                        ChapterPanel.Visibility = Visibility.Visible;
+                        ChapterCombo.SelectedIndex = _mediaPlayer.Chapter > -1 ? _mediaPlayer.Chapter : 0;
+                    }
+                    else
+                    {
+                        ChapterPanel.Visibility = Visibility.Collapsed;
+                    }
+                }
+                else
+                {
+                    ChapterPanel.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Chapters] Failed to load chapters: {ex.Message}");
+                ChapterCombo.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
+            {
+                if (_mediaPlayer.Chapter != track.Id)
+                {
+                    _mediaPlayer.Chapter = track.Id;
+                }
+            }
+        }
 
         // --- BUTTON CLICKS ---
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e) => PlayPause();
@@ -319,7 +381,10 @@ namespace AnimeStreamer.Views
             if (!_isUserSeeking && _mediaPlayer != null)
             {
                 TimelineSlider.Value = currentTime;
-                TimeText.Text = $"{FormatTime(currentTime)} / {FormatTime(_mediaPlayer.Length)}";
+
+                // Update the new separated TextBlocks instead of the old TimeText
+                CurrentTimeText.Text = FormatTime(currentTime);
+                TotalTimeText.Text = FormatTime(_mediaPlayer.Length);
             }
         }
 
@@ -343,7 +408,6 @@ namespace AnimeStreamer.Views
             _isUserSeeking = false;
         }
 
-        // --- TRACKS & CHAPTERS ---
         private void PopulateTracks()
         {
             if (_mediaPlayer == null) return;
@@ -358,46 +422,6 @@ namespace AnimeStreamer.Views
             SubtitleTrackCombo.SelectedItem = subTracks.FirstOrDefault(t => t.Id == _mediaPlayer.Spu);
         }
 
-        private void PopulateChapters()
-        {
-            try
-            {
-                if (_mediaPlayer == null) return;
-
-                if (_mediaPlayer.TitleCount > 0)
-                {
-                    int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
-                    var chapters = _mediaPlayer.ChapterDescription(currentTitle);
-
-                    if (chapters != null && chapters.Length > 0)
-                    {
-                        var chapterList = chapters.Select((c, index) => new TrackItem
-                        {
-                            Id = index,
-                            Name = string.IsNullOrEmpty(c.Name) ? $"Chapter {index + 1}" : c.Name
-                        }).ToList();
-
-                        ChapterCombo.ItemsSource = chapterList;
-                        ChapterCombo.Visibility = Visibility.Visible;
-                        ChapterCombo.SelectedIndex = _mediaPlayer.Chapter > -1 ? _mediaPlayer.Chapter : 0;
-                    }
-                    else
-                    {
-                        ChapterCombo.Visibility = Visibility.Collapsed;
-                    }
-                }
-                else
-                {
-                    ChapterCombo.Visibility = Visibility.Collapsed;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Chapters] Failed to load chapters: {ex.Message}");
-                ChapterCombo.Visibility = Visibility.Collapsed;
-            }
-        }
-
         private void AudioTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (AudioTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null) _mediaPlayer.SetAudioTrack(track.Id);
@@ -406,17 +430,6 @@ namespace AnimeStreamer.Views
         private void SubtitleTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (SubtitleTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null) _mediaPlayer.SetSpu(track.Id);
-        }
-
-        private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
-            {
-                if (_mediaPlayer.Chapter != track.Id)
-                {
-                    _mediaPlayer.Chapter = track.Id;
-                }
-            }
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)

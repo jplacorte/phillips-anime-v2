@@ -50,24 +50,46 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Slider x:Name="TimelineSlider" Grid.Row="0" Margin="0,0,0,10" Minimum="0" Maximum="100" StepFrequency="1000"
-                        PointerMoved="TimelineSlider_PointerMoved" AllowFocusOnInteraction="False" ToolTipService.Placement="Top">
-                    <ToolTipService.ToolTip>
-                        <ToolTip x:Name="SliderToolTip" Content="00:00" />
-                    </ToolTipService.ToolTip>
-                </Slider>
+                <Grid Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="CurrentTimeText" Grid.Column="0" Text="00:00" Foreground="White" FontSize="14" VerticalAlignment="Center" Margin="0,0,15,0"/>
+
+                    <Slider x:Name="TimelineSlider" Grid.Column="1" VerticalAlignment="Center" Minimum="0" Maximum="100" StepFrequency="1000"
+                            PointerMoved="TimelineSlider_PointerMoved" AllowFocusOnInteraction="False" ToolTipService.Placement="Top">
+                        <ToolTipService.ToolTip>
+                            <ToolTip x:Name="SliderToolTip" Content="00:00" />
+                        </ToolTipService.ToolTip>
+                    </Slider>
+
+                    <TextBlock x:Name="TotalTimeText" Grid.Column="2" Text="00:00" Foreground="White" FontSize="14" VerticalAlignment="Center" Margin="15,0,0,0"/>
+                </Grid>
 
                 <Grid Grid.Row="1">
                     <StackPanel Orientation="Horizontal" Spacing="20" VerticalAlignment="Center" HorizontalAlignment="Left">
                         <Button x:Name="PlayPauseButton" Content="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
                         <Button x:Name="NextButton" Content="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="NextButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
 
-                        <ComboBox x:Name="ChapterCombo" PlaceholderText="Chapters" Width="150" DisplayMemberPath="Name" SelectionChanged="ChapterCombo_SelectionChanged" Background="#333333" Foreground="White" Visibility="Collapsed"/>
+                        <StackPanel x:Name="ChapterPanel" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" Visibility="Collapsed">
+                            <TextBlock Text="Chapters:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ChapterCombo" PlaceholderText="Chapters" Width="150" DisplayMemberPath="Name" SelectionChanged="ChapterCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                        </StackPanel>
 
-                        <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
-                        <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Audio:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Subtitles:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                        </StackPanel>
                     </StackPanel>
-                    <TextBlock x:Name="TimeText" Text="00:00 / 00:00" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White"/>
+
                     <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Button x:Name="MuteButton" Content="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="18" Click="MuteButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White" Margin="0,0,5,0"/>
                         <Slider x:Name="VolumeSlider" Width="100" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" FocusVisualMargin="0" AllowFocusOnInteraction="False" ValueChanged="VolumeSlider_ValueChanged"/>

@@ -1,12 +1,7 @@
-﻿using System;
-using System.IO;
-using System.Net;
-using System.Net.Http;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace AnimeStreamer.Services
 {
@@ -17,8 +12,8 @@ namespace AnimeStreamer.Services
         private CancellationTokenSource? _cts;
         private int _port;
 
-        // Use a 1 Megabyte buffer for video streaming (Default is 80KB)
-        private const int BufferSize = 1024 * 1024;
+        // OPTIMIZATION: Maximize 60MB/s bandwidth with a massive 4MB buffer!
+        private const int BufferSize = 4194304;
 
         public int Port => _port;
 

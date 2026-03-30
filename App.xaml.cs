@@ -1,8 +1,5 @@
-using System;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Navigation;
 using WinRT.Interop;
 
 namespace AnimeStreamer

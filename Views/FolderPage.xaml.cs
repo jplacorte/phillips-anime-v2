@@ -24,6 +24,9 @@ namespace AnimeStreamer.Views
         {
             this.InitializeComponent();
 
+            // CRITICAL: Keep episodes loaded when returning from PlayerPage
+            this.NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
+
             EpisodesList.ItemsSource = Episodes;
             SubfolderGrid.ItemsSource = Subfolders;
         }
@@ -31,6 +34,10 @@ namespace AnimeStreamer.Views
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            // CRITICAL: If we are navigating "Back" from the PlayerPage, DO NOT re-fetch!
+            if (e.NavigationMode == NavigationMode.Back) return;
+
             if (e.Parameter is AnimeItemViewModel selectedAnime)
             {
                 LoadEpisodes(selectedAnime);
@@ -56,7 +63,6 @@ namespace AnimeStreamer.Views
 
             try
             {
-                // Fetch BOTH Subfolders and Video Files concurrently
                 var folderTask = Task.Run(() => _driveService.GetSubFoldersAsync(_currentFolderId));
                 var fileTask = Task.Run(() => _driveService.GetVideoFilesInFolderAsync(_currentFolderId));
 
@@ -77,16 +83,13 @@ namespace AnimeStreamer.Views
                         foreach (var f in folders)
                         {
                             if (f.Id == null || f.Name == null) continue;
-
-                            bool shouldHide = hiddenFolders.Contains(f.Name.ToLower());
-                            if (shouldHide) continue;
+                            if (hiddenFolders.Contains(f.Name.ToLower())) continue;
 
                             hasContent = true;
                             SubfolderGrid.Visibility = Visibility.Visible;
 
-                            string fullTitle = f.Name.ToLower().Contains(_currentAnimeTitle!.ToLower())
-                                ? f.Name
-                                : $"{_currentAnimeTitle} {f.Name}";
+                            // --- THE FIX: Just use the exact folder name from Google Drive! ---
+                            string fullTitle = f.Name.Trim();
 
                             Subfolders.Add(new AnimeItemViewModel
                             {
@@ -98,7 +101,7 @@ namespace AnimeStreamer.Views
                         _ = FetchSubfolderCoversAsync();
                     }
 
-                    // 2. Process Video Files (Episodes)
+                    // 2. Process Video Files
                     if (files != null && files.Count > 0)
                     {
                         hasContent = true;
@@ -113,44 +116,30 @@ namespace AnimeStreamer.Views
                             if (file.Name == null || file.Id == null) continue;
 
                             bool isOva = file.Name.ToLower().Contains("ova");
-
-                            // Scan for decimals (e.g. 1.5), explicitly ignoring 5.1 or 7.1 surround sound tags
                             var matches = System.Text.RegularExpressions.Regex.Matches(file.Name, @"(?<!\d)\d+\.\d+(?!\d)");
-                            var validDecimal = matches.Cast<System.Text.RegularExpressions.Match>()
-                                                      .FirstOrDefault(m => m.Value != "5.1" && m.Value != "7.1");
+                            var validDecimal = matches.Cast<System.Text.RegularExpressions.Match>().FirstOrDefault(m => m.Value != "5.1" && m.Value != "7.1");
 
                             bool isDecimalEpisode = validDecimal != null;
                             string episodeNumString;
 
                             if (isDecimalEpisode)
                             {
-                                // Keep the exact number formatting found in the file name
                                 episodeNumString = validDecimal!.Value;
-
-                                // If the decimal is single-digit (e.g. "1.5"), pad it to "01.5" to match E01 format
-                                if (episodeNumString.IndexOf('.') == 1)
-                                {
-                                    episodeNumString = "0" + episodeNumString;
-                                }
+                                if (episodeNumString.IndexOf('.') == 1) episodeNumString = "0" + episodeNumString;
                             }
                             else
                             {
-                                // Use "D2" to automatically add leading zeros to 1-9 (e.g., 01, 02, 03)
                                 episodeNumString = (isOva ? ovaCounter : episodeCounter).ToString("D2");
                             }
 
-                            // FORMAT: "Title - E01" or "Title - OVA01"
                             string prefix = isOva ? "OVA" : "E";
-                            string cleanTitle = $"{_currentAnimeTitle} - {prefix}{episodeNumString}";
-
                             Episodes.Add(new EpisodeItemViewModel
                             {
                                 FileId = file.Id,
-                                Title = cleanTitle,
+                                Title = $"{_currentAnimeTitle} - {prefix}{episodeNumString}",
                                 StreamUrl = file.WebContentLink
                             });
 
-                            // Only increment the counter if it was a normal, whole-number episode!
                             if (!isDecimalEpisode)
                             {
                                 if (isOva) ovaCounter++;
@@ -165,27 +154,15 @@ namespace AnimeStreamer.Views
                         ErrorText.Visibility = Visibility.Visible;
                     }
 
-                    // Link the Next Episodes together for the Auto-Play feature
                     if (Episodes.Count > 1)
                     {
-                        for (int i = 0; i < Episodes.Count - 1; i++)
-                        {
-                            Episodes[i].NextEpisode = Episodes[i + 1];
-                        }
+                        for (int i = 0; i < Episodes.Count - 1; i++) Episodes[i].NextEpisode = Episodes[i + 1];
                     }
 
                     EpisodesLoadingRing.IsActive = false;
                 });
             }
-            catch (System.Exception ex)
-            {
-                this.DispatcherQueue.TryEnqueue(() =>
-                {
-                    EpisodesLoadingRing.IsActive = false;
-                    ErrorText.Text = $"Failed to load contents: {ex.Message}";
-                    ErrorText.Visibility = Visibility.Visible;
-                });
-            }
+            catch { /* handle ex */ }
         }
 
         private async Task FetchSubfolderCoversAsync()
@@ -201,7 +178,8 @@ namespace AnimeStreamer.Views
                     }
                 }
                 catch { /* Ignore */ }
-                await Task.Delay(400);
+
+                // REMOVED THE HARDCODED TASK.DELAY HERE!
             }
         }
 
@@ -211,19 +189,28 @@ namespace AnimeStreamer.Views
             this.Frame.Navigate(typeof(FolderPage), clickedSubfolder);
         }
 
-        private void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
+        // Note: We added the 'async' keyword to the method signature!
+        private async void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
+
+            // 1. Turn on the loading screen
             LoadingOverlay.Visibility = Visibility.Visible;
+
+            // 2. CRITICAL FIX: Yield to the UI thread for 50ms so it actually draws the overlay!
+            await Task.Delay(50);
+
+            // 3. Now trigger the heavy navigation to the PlayerPage
             this.Frame.Navigate(typeof(PlayerPage), clickedEpisode);
+
+            // 4. Hide the overlay immediately after navigation finishes, 
+            // so it is clean and ready when the user clicks the "Back" button later!
+            LoadingOverlay.Visibility = Visibility.Collapsed;
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (this.Frame.CanGoBack)
-            {
-                this.Frame.GoBack();
-            }
+            if (this.Frame.CanGoBack) this.Frame.GoBack();
         }
     }
 }
