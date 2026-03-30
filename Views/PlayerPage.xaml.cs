@@ -62,7 +62,6 @@ namespace AnimeStreamer.Views
         {
             base.OnNavigatedTo(e);
 
-            // OPTIMIZATION: Instantly remove all previous video players from the history stack!
             var backStack = this.Frame.BackStack;
             for (int i = backStack.Count - 1; i >= 0; i--)
             {
@@ -97,13 +96,13 @@ namespace AnimeStreamer.Views
 
         private void Accelerator_Forward(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (_mediaPlayer != null) _mediaPlayer.Time += 10000; // Skip 10s
+            if (_mediaPlayer != null) _mediaPlayer.Time += 10000;
             args.Handled = true;
         }
 
         private void Accelerator_Backward(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            if (_mediaPlayer != null) _mediaPlayer.Time -= 10000; // Rewind 10s
+            if (_mediaPlayer != null) _mediaPlayer.Time -= 10000;
             args.Handled = true;
         }
 
@@ -194,17 +193,17 @@ namespace AnimeStreamer.Views
         }
 
         // --- INITIALIZATION ---
-#pragma warning disable CS8622
+#pragma warning disable CS8622 
         private async void VideoView_Initialized(object? sender, InitializedEventArgs e)
         {
             var options = e.SwapChainOptions.ToList();
             options.Add("--no-lua");
 
-            // OPTIMIZATION 1: Global Hardware & Performance Flags
-            options.Add("--avcodec-hw=d3d11va"); // Force Direct3D11 Hardware Decoding for WinUI
-            options.Add("--drop-late-frames");   // Drop frames instead of buffering if falling behind
-            options.Add("--skip-frames");        // Skip B-frames during high CPU load
-            options.Add("--fast-seek");          // Makes clicking around the timeline much faster
+            // Performance & Hardware Decoding Options
+            options.Add("--avcodec-hw=any");     // Let VLC negotiate safely with WinUI
+            options.Add("--drop-late-frames");   // Drop frames instead of buffering
+            options.Add("--skip-frames");        // Skip B-frames during high load
+            options.Add("--fast-seek");          // Makes timeline seeking instant
 
             _libVLC = new LibVLC(options.ToArray());
             _mediaPlayer = new MediaPlayer(_libVLC);
@@ -231,6 +230,7 @@ namespace AnimeStreamer.Views
                 ErrorPanel.Visibility = Visibility.Visible;
             });
 
+            // Automatically updates the UI when the video naturally plays into the next chapter
             _mediaPlayer.ChapterChanged += (s, args) => DispatcherQueue.TryEnqueue(() => {
                 if (ChapterCombo.ItemsSource != null && args.Chapter < ChapterCombo.Items.Count)
                 {
@@ -254,14 +254,11 @@ namespace AnimeStreamer.Views
 
                     var media = new Media(_libVLC, proxyUrl, FromType.FromLocation);
 
-                    // OPTIMIZATION 2: Aggressive Network & Caching Flags
-                    // Reduced from 3000ms to 1000ms. If your internet is fast, try 500!
-                    media.AddOption(":network-caching=500");
-                    media.AddOption(":file-caching=500");     // Local proxy caching
-                    media.AddOption(":live-caching=500");
-
-                    // OPTIMIZATION 3: Clock Synchronization
-                    media.AddOption(":clock-jitter=0");        // Disables initial synchronization delay
+                    // Streaming & Caching Options
+                    media.AddOption(":network-caching=1000");
+                    media.AddOption(":file-caching=1000");
+                    media.AddOption(":live-caching=1000");
+                    media.AddOption(":clock-jitter=0");
                     media.AddOption(":clock-synchro=0");
                     media.AddOption(":ipv4");
 
@@ -271,47 +268,6 @@ namespace AnimeStreamer.Views
             }
         }
 #pragma warning restore CS8622
-
-        private void PopulateChapters()
-        {
-            if (_mediaPlayer == null) return;
-
-            // VLC groups chapters under "Titles". MKVs usually only have 1 Title (Index 0).
-            int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
-            var chapters = _mediaPlayer.ChapterDescription(currentTitle);
-
-            if (chapters != null && chapters.Length > 0)
-            {
-                // Reusing your existing TrackItem class!
-                var chapterList = chapters.Select((c, index) => new TrackItem
-                {
-                    Id = index,
-                    Name = string.IsNullOrEmpty(c.Name) ? $"Chapter {index + 1}" : c.Name
-                }).ToList();
-
-                ChapterCombo.ItemsSource = chapterList;
-                ChapterCombo.Visibility = Visibility.Visible;
-
-                // Set the currently active chapter
-                ChapterCombo.SelectedIndex = _mediaPlayer.Chapter;
-            }
-            else
-            {
-                ChapterCombo.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
-            {
-                // Prevent infinite loops if the video naturally progressed into the chapter
-                if (_mediaPlayer.Chapter != track.Id)
-                {
-                    _mediaPlayer.Chapter = track.Id;
-                }
-            }
-        }
 
         // --- BUTTON CLICKS ---
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e) => PlayPause();
@@ -387,6 +343,7 @@ namespace AnimeStreamer.Views
             _isUserSeeking = false;
         }
 
+        // --- TRACKS & CHAPTERS ---
         private void PopulateTracks()
         {
             if (_mediaPlayer == null) return;
@@ -401,6 +358,46 @@ namespace AnimeStreamer.Views
             SubtitleTrackCombo.SelectedItem = subTracks.FirstOrDefault(t => t.Id == _mediaPlayer.Spu);
         }
 
+        private void PopulateChapters()
+        {
+            try
+            {
+                if (_mediaPlayer == null) return;
+
+                if (_mediaPlayer.TitleCount > 0)
+                {
+                    int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
+                    var chapters = _mediaPlayer.ChapterDescription(currentTitle);
+
+                    if (chapters != null && chapters.Length > 0)
+                    {
+                        var chapterList = chapters.Select((c, index) => new TrackItem
+                        {
+                            Id = index,
+                            Name = string.IsNullOrEmpty(c.Name) ? $"Chapter {index + 1}" : c.Name
+                        }).ToList();
+
+                        ChapterCombo.ItemsSource = chapterList;
+                        ChapterCombo.Visibility = Visibility.Visible;
+                        ChapterCombo.SelectedIndex = _mediaPlayer.Chapter > -1 ? _mediaPlayer.Chapter : 0;
+                    }
+                    else
+                    {
+                        ChapterCombo.Visibility = Visibility.Collapsed;
+                    }
+                }
+                else
+                {
+                    ChapterCombo.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Chapters] Failed to load chapters: {ex.Message}");
+                ChapterCombo.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private void AudioTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (AudioTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null) _mediaPlayer.SetAudioTrack(track.Id);
@@ -409,6 +406,17 @@ namespace AnimeStreamer.Views
         private void SubtitleTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (SubtitleTrackCombo.SelectedItem is TrackItem track && _mediaPlayer != null) _mediaPlayer.SetSpu(track.Id);
+        }
+
+        private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
+            {
+                if (_mediaPlayer.Chapter != track.Id)
+                {
+                    _mediaPlayer.Chapter = track.Id;
+                }
+            }
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
