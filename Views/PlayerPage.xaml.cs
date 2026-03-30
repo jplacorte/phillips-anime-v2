@@ -194,12 +194,17 @@ namespace AnimeStreamer.Views
         }
 
         // --- INITIALIZATION ---
-#pragma warning disable CS8622 
+#pragma warning disable CS8622
         private async void VideoView_Initialized(object? sender, InitializedEventArgs e)
         {
             var options = e.SwapChainOptions.ToList();
             options.Add("--no-lua");
-            options.Add("--verbose=2");
+
+            // OPTIMIZATION 1: Global Hardware & Performance Flags
+            options.Add("--avcodec-hw=d3d11va"); // Force Direct3D11 Hardware Decoding for WinUI
+            options.Add("--drop-late-frames");   // Drop frames instead of buffering if falling behind
+            options.Add("--skip-frames");        // Skip B-frames during high CPU load
+            options.Add("--fast-seek");          // Makes clicking around the timeline much faster
 
             _libVLC = new LibVLC(options.ToArray());
             _mediaPlayer = new MediaPlayer(_libVLC);
@@ -211,6 +216,7 @@ namespace AnimeStreamer.Views
                 BufferingRing.IsActive = false;
                 BufferingRing.Visibility = Visibility.Collapsed;
                 PopulateTracks();
+                PopulateChapters();
                 _idleTimer.Start();
                 PlayPauseButton.Content = "\xE769";
             });
@@ -223,6 +229,13 @@ namespace AnimeStreamer.Views
                 BufferingRing.IsActive = false;
                 BufferingRing.Visibility = Visibility.Collapsed;
                 ErrorPanel.Visibility = Visibility.Visible;
+            });
+
+            _mediaPlayer.ChapterChanged += (s, args) => DispatcherQueue.TryEnqueue(() => {
+                if (ChapterCombo.ItemsSource != null && args.Chapter < ChapterCombo.Items.Count)
+                {
+                    ChapterCombo.SelectedIndex = args.Chapter;
+                }
             });
 
             DispatcherQueue.TryEnqueue(() => VideoView.MediaPlayer = _mediaPlayer);
@@ -240,14 +253,65 @@ namespace AnimeStreamer.Views
                     string proxyUrl = $"http://localhost:{_proxyServer.Port}/video.mkv?id={_currentEpisode.FileId}&token={token}";
 
                     var media = new Media(_libVLC, proxyUrl, FromType.FromLocation);
-                    media.AddOption(":network-caching=3000");
+
+                    // OPTIMIZATION 2: Aggressive Network & Caching Flags
+                    // Reduced from 3000ms to 1000ms. If your internet is fast, try 500!
+                    media.AddOption(":network-caching=500");
+                    media.AddOption(":file-caching=500");     // Local proxy caching
+                    media.AddOption(":live-caching=500");
+
+                    // OPTIMIZATION 3: Clock Synchronization
+                    media.AddOption(":clock-jitter=0");        // Disables initial synchronization delay
+                    media.AddOption(":clock-synchro=0");
                     media.AddOption(":ipv4");
+
                     _mediaPlayer.Play(media);
                 }
                 catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[FATAL] Proxy stream failed: {ex.Message}"); }
             }
         }
 #pragma warning restore CS8622
+
+        private void PopulateChapters()
+        {
+            if (_mediaPlayer == null) return;
+
+            // VLC groups chapters under "Titles". MKVs usually only have 1 Title (Index 0).
+            int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
+            var chapters = _mediaPlayer.ChapterDescription(currentTitle);
+
+            if (chapters != null && chapters.Length > 0)
+            {
+                // Reusing your existing TrackItem class!
+                var chapterList = chapters.Select((c, index) => new TrackItem
+                {
+                    Id = index,
+                    Name = string.IsNullOrEmpty(c.Name) ? $"Chapter {index + 1}" : c.Name
+                }).ToList();
+
+                ChapterCombo.ItemsSource = chapterList;
+                ChapterCombo.Visibility = Visibility.Visible;
+
+                // Set the currently active chapter
+                ChapterCombo.SelectedIndex = _mediaPlayer.Chapter;
+            }
+            else
+            {
+                ChapterCombo.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
+            {
+                // Prevent infinite loops if the video naturally progressed into the chapter
+                if (_mediaPlayer.Chapter != track.Id)
+                {
+                    _mediaPlayer.Chapter = track.Id;
+                }
+            }
+        }
 
         // --- BUTTON CLICKS ---
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e) => PlayPause();

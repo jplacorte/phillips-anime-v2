@@ -62,6 +62,8 @@
                         <Button x:Name="PlayPauseButton" Content="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
                         <Button x:Name="NextButton" Content="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="NextButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
 
+                        <ComboBox x:Name="ChapterCombo" PlaceholderText="Chapters" Width="150" DisplayMemberPath="Name" SelectionChanged="ChapterCombo_SelectionChanged" Background="#333333" Foreground="White" Visibility="Collapsed"/>
+
                         <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
                         <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
                     </StackPanel>

@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AnimeStreamer.Services // Updated Namespace
+namespace AnimeStreamer.Services
 {
     public class LocalProxyServer : IDisposable
     {
@@ -16,6 +16,9 @@ namespace AnimeStreamer.Services // Updated Namespace
         private readonly HttpClient _httpClient;
         private CancellationTokenSource? _cts;
         private int _port;
+
+        // Use a 1 Megabyte buffer for video streaming (Default is 80KB)
+        private const int BufferSize = 1024 * 1024;
 
         public int Port => _port;
 
@@ -29,7 +32,6 @@ namespace AnimeStreamer.Services // Updated Namespace
         {
             _port = port;
 
-            // Try to start on the requested port, if it fails, let Windows pick a random open port
             try
             {
                 _listener = new TcpListener(IPAddress.Loopback, _port);
@@ -53,6 +55,12 @@ namespace AnimeStreamer.Services // Updated Namespace
                 while (!token.IsCancellationRequested)
                 {
                     var client = await _listener!.AcceptTcpClientAsync(token);
+
+                    // OPTIMIZATION: Tweak Socket settings for high-bandwidth media streaming
+                    client.NoDelay = true; // Disable Nagle's algorithm to reduce latency
+                    client.SendBufferSize = BufferSize;
+                    client.ReceiveBufferSize = BufferSize;
+
                     _ = Task.Run(() => HandleClientAsync(client, token));
                 }
             }
@@ -106,6 +114,7 @@ namespace AnimeStreamer.Services // Updated Namespace
                 if (rangeHeader != null)
                     httpRequest.Headers.TryAddWithoutValidation("Range", rangeHeader);
 
+                // HttpCompletionOption.ResponseHeadersRead is crucial here (which you already had!)
                 using var httpResponse = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, token);
 
                 await WriteResponseAsync(networkStream, $"HTTP/1.1 {(int)httpResponse.StatusCode} {httpResponse.ReasonPhrase}\r\n");
@@ -131,7 +140,9 @@ namespace AnimeStreamer.Services // Updated Namespace
                 if (httpMethod == "GET" && httpResponse.IsSuccessStatusCode)
                 {
                     using var inStream = await httpResponse.Content.ReadAsStreamAsync(token);
-                    await inStream.CopyToAsync(networkStream, 81920, token);
+
+                    // OPTIMIZATION: Use a much larger buffer for the stream copy
+                    await inStream.CopyToAsync(networkStream, BufferSize, token);
                 }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Proxy] Error streaming: {ex.Message}"); }
