@@ -8,10 +8,9 @@ namespace AnimeStreamer.Services
     public class GoogleDriveService
     {
         private readonly DriveService _service;
-        private readonly GoogleCredential _credential; // Store the credential
+        private readonly GoogleCredential _credential;
         private const string RootAnimeFolderId = "1xvceiMAE4rYz3VGlVTNcbdYKkBApWkp2";
 
-        // ADD YOUR TEMP FOLDER ID HERE
         public const string TempFolderId = "1gHt2ufjQUvZsGUczXafua3bYihH1IjQd";
 
         public GoogleDriveService()
@@ -32,39 +31,80 @@ namespace AnimeStreamer.Services
 
         public async Task<string> GetAccessTokenAsync()
         {
-            // This fetches a fresh Bearer token from Google
             var token = await _credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
             return token;
         }
 
         public async Task<IList<DriveFile>> GetAnimeFoldersAsync()
         {
+            var allFolders = new List<DriveFile>();
             var request = _service.Files.List();
             request.Q = $"mimeType = 'application/vnd.google-apps.folder' and '{RootAnimeFolderId}' in parents and trashed = false";
-            request.Fields = "files(id, name)";
-            request.OrderBy = "name";
-            var result = await request.ExecuteAsync();
-            return result.Files ?? new List<DriveFile>();
+
+            // CRITICAL FIX: Add nextPageToken and increase PageSize to 1000
+            request.Fields = "nextPageToken, files(id, name)";
+            request.PageSize = 1000;
+
+            do
+            {
+                var response = await request.ExecuteAsync();
+                if (response.Files != null)
+                {
+                    allFolders.AddRange(response.Files);
+                }
+                request.PageToken = response.NextPageToken;
+
+            } while (!string.IsNullOrEmpty(request.PageToken));
+
+            return allFolders.OrderBy(f => f.Name).ToList();
         }
 
         public async Task<IList<DriveFile>> GetVideoFilesInFolderAsync(string folderId)
         {
+            var allFiles = new List<DriveFile>();
             var request = _service.Files.List();
             request.Q = $"'{folderId}' in parents and mimeType contains 'video/' and trashed = false";
-            request.Fields = "files(id, name, webContentLink)";
-            request.OrderBy = "name";
-            var result = await request.ExecuteAsync();
-            return result.Files ?? new List<DriveFile>();
+
+            // CRITICAL FIX: Add nextPageToken and increase PageSize to 1000
+            request.Fields = "nextPageToken, files(id, name, webContentLink)";
+            request.PageSize = 1000;
+
+            do
+            {
+                var response = await request.ExecuteAsync();
+                if (response.Files != null)
+                {
+                    allFiles.AddRange(response.Files);
+                }
+                request.PageToken = response.NextPageToken;
+
+            } while (!string.IsNullOrEmpty(request.PageToken));
+
+            return allFiles.OrderBy(f => f.Name).ToList();
         }
 
         public async Task<IList<DriveFile>> GetSubFoldersAsync(string folderId)
         {
+            var allSubfolders = new List<DriveFile>();
             var request = _service.Files.List();
             request.Q = $"mimeType = 'application/vnd.google-apps.folder' and '{folderId}' in parents and trashed = false";
-            request.Fields = "files(id, name)";
-            request.OrderBy = "name";
-            var result = await request.ExecuteAsync();
-            return result.Files ?? new List<DriveFile>();
+
+            // CRITICAL FIX: Add nextPageToken and increase PageSize to 1000
+            request.Fields = "nextPageToken, files(id, name)";
+            request.PageSize = 1000;
+
+            do
+            {
+                var response = await request.ExecuteAsync();
+                if (response.Files != null)
+                {
+                    allSubfolders.AddRange(response.Files);
+                }
+                request.PageToken = response.NextPageToken;
+
+            } while (!string.IsNullOrEmpty(request.PageToken));
+
+            return allSubfolders.OrderBy(f => f.Name).ToList();
         }
 
         public async Task<string> CopyFileToTempAsync(string originalFileId)

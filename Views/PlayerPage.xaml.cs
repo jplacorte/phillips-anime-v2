@@ -179,7 +179,15 @@ namespace AnimeStreamer.Views
 #pragma warning disable CS8622
         private async void VideoView_Initialized(object? sender, InitializedEventArgs e)
         {
+            // These options already contain WinUI 3's native, safe hardware acceleration instructions!
             var options = e.SwapChainOptions.ToList();
+
+            // THE FIX: Remove the manual hardware flags that crash WinUI 3!
+            // Instead, we enable these native VLC safety valves. If a heavy 3D scene 
+            // overwhelms the system, VLC will silently skip a micro-frame to keep the 
+            // audio and video perfectly synced without freezing or crashing.
+            options.Add("--drop-late-frames");
+            options.Add("--skip-frames");
 
             _libVLC = new LibVLC(options.ToArray());
             _mediaPlayer = new MediaPlayer(_libVLC);
@@ -261,6 +269,10 @@ namespace AnimeStreamer.Views
             {
                 if (_mediaPlayer == null) return;
 
+                // THE FIX: If chapters are already loaded for this video, do NOT rebuild the list!
+                // Rebuilding it mid-stream causes WinUI to reset the selection and trigger a fake seek.
+                if (ChapterCombo.ItemsSource != null) return;
+
                 if (_mediaPlayer.TitleCount > 0)
                 {
                     int currentTitle = _mediaPlayer.Title > -1 ? _mediaPlayer.Title : 0;
@@ -277,7 +289,6 @@ namespace AnimeStreamer.Views
                         ChapterCombo.ItemsSource = chapterList;
                         ChapterPanel.Visibility = Visibility.Visible;
 
-                        // CRITICAL FIX: Set the tracker BEFORE selecting the ComboBox
                         _currentChapterIndex = _mediaPlayer.Chapter > -1 ? _mediaPlayer.Chapter : 0;
                         ChapterCombo.SelectedIndex = _currentChapterIndex;
                     }
@@ -302,28 +313,19 @@ namespace AnimeStreamer.Views
         {
             if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
             {
-                // CRITICAL FIX: Only seek if the user actually clicked it, not if VLC naturally progressed
-                if (track.Id != _currentChapterIndex)
+                // DOUBLE CHECK: Ensure the UI index AND VLC's native index do not match what was selected
+                if (track.Id != _currentChapterIndex && track.Id != _mediaPlayer.Chapter)
                 {
                     try
                     {
-                        // SAFETY NET: Ensure VLC is actively playing or paused before forcing a seek
                         if (_mediaPlayer.State == VLCState.Playing || _mediaPlayer.State == VLCState.Paused)
                         {
                             _currentChapterIndex = track.Id;
-                            _mediaPlayer.Chapter = track.Id; // Tell VLC to seek!
+                            _mediaPlayer.Chapter = track.Id;
                         }
                     }
-                    catch (ArgumentException)
-                    {
-                        // LibVLC throws this if the video's chapter metadata is slightly out of sync 
-                        // or if it isn't ready to jump yet. We catch it so the app never crashes!
-                        System.Diagnostics.Debug.WriteLine($"[VLC] Ignored invalid chapter jump to index: {track.Id}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[VLC] Chapter seek error: {ex.Message}");
-                    }
+                    catch (ArgumentException) { /* Safely ignored */ }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[VLC] Error: {ex.Message}"); }
                 }
             }
         }
@@ -404,6 +406,9 @@ namespace AnimeStreamer.Views
         private void PopulateTracks()
         {
             if (_mediaPlayer == null) return;
+
+            // THE FIX: Prevent rebuilding mid-stream to avoid stuttering
+            if (AudioTrackCombo.ItemsSource != null) return;
 
             var audioTracks = _mediaPlayer.AudioTrackDescription.Select(t => new TrackItem { Id = t.Id, Name = t.Name }).ToList();
             var subTracks = _mediaPlayer.SpuDescription.Select(t => new TrackItem { Id = t.Id, Name = t.Name }).ToList();
