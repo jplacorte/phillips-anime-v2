@@ -126,13 +126,34 @@ namespace StreamApp.Services
             try
             {
                 var q = Uri.EscapeDataString(name);
-                var json = await _http.GetStringAsync($"https://api.jikan.moe/v4/anime?q={q}&limit=1");
+
+                // CRITICAL FIX: Fetch the top 5 results instead of just 1
+                var json = await _http.GetStringAsync($"https://api.jikan.moe/v4/anime?q={q}&limit=5");
 
                 using var doc = JsonDocument.Parse(json);
                 var data = doc.RootElement.GetProperty("data");
 
                 if (data.GetArrayLength() == 0) return null;
 
+                // 1. SMART FILTER: Check the top 5 results for an EXACT string match first!
+                foreach (var item in data.EnumerateArray())
+                {
+                    string? mainTitle = item.GetProperty("title").GetString();
+
+                    // Safely check for English titles (some MAL entries don't have them)
+                    string? englishTitle = item.TryGetProperty("title_english", out var engProp) && engProp.ValueKind == JsonValueKind.String
+                        ? engProp.GetString()
+                        : null;
+
+                    if (string.Equals(mainTitle, name, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(englishTitle, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Jikan] Exact match found for: '{name}'");
+                        return item.GetProperty("images").GetProperty("jpg").GetProperty("large_image_url").GetString();
+                    }
+                }
+
+                // 2. FALLBACK: If no exact match is found, just grab the #1 result like before
                 return data[0].GetProperty("images").GetProperty("jpg").GetProperty("large_image_url").GetString();
             }
             catch (Exception ex)
