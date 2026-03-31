@@ -1,12 +1,8 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
-using System.Collections.ObjectModel;
-using System.Threading.Tasks;
-using StreamApp.Services;
 using AnimeStreamer.Services;
+using Microsoft.UI.Xaml.Navigation;
+using StreamApp.Services;
 using StreamApp.ViewModels;
-using System.Linq;
+using System.Collections.ObjectModel;
 
 namespace AnimeStreamer.Views
 {
@@ -19,13 +15,15 @@ namespace AnimeStreamer.Views
 
         private string? _currentFolderId;
         private string? _currentAnimeTitle;
+        // NEW: Track the parent folder so we know where to go back to
+        private AnimeItemViewModel? _parentAnime;
 
         public FolderPage()
         {
             this.InitializeComponent();
 
-            // CRITICAL: Keep episodes loaded when returning from PlayerPage
-            this.NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
+            // Keep this Enabled for general caching benefits
+            this.NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Enabled;
 
             EpisodesList.ItemsSource = Episodes;
             SubfolderGrid.ItemsSource = Subfolders;
@@ -35,12 +33,20 @@ namespace AnimeStreamer.Views
         {
             base.OnNavigatedTo(e);
 
-            // CRITICAL: If we are navigating "Back" from the PlayerPage, DO NOT re-fetch!
             if (e.NavigationMode == NavigationMode.Back) return;
 
+            // Check if we passed a tuple (Parent, Child) or just the AnimeItemViewModel
             if (e.Parameter is AnimeItemViewModel selectedAnime)
             {
+                // This is a root folder navigation
+                _parentAnime = null;
                 LoadEpisodes(selectedAnime);
+            }
+            else if (e.Parameter is (AnimeItemViewModel parent, AnimeItemViewModel child))
+            {
+                // This is a subfolder navigation
+                _parentAnime = parent;
+                LoadEpisodes(child);
             }
         }
 
@@ -88,7 +94,6 @@ namespace AnimeStreamer.Views
                             hasContent = true;
                             SubfolderGrid.Visibility = Visibility.Visible;
 
-                            // --- THE FIX: Just use the exact folder name from Google Drive! ---
                             string fullTitle = f.Name.Trim();
 
                             Subfolders.Add(new AnimeItemViewModel
@@ -162,7 +167,10 @@ namespace AnimeStreamer.Views
                     EpisodesLoadingRing.IsActive = false;
                 });
             }
-            catch { /* handle ex */ }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[FetchContentsAsync Error] {ex.Message}");
+            }
         }
 
         private async Task FetchSubfolderCoversAsync()
@@ -178,39 +186,43 @@ namespace AnimeStreamer.Views
                     }
                 }
                 catch { /* Ignore */ }
-
-                // REMOVED THE HARDCODED TASK.DELAY HERE!
             }
         }
 
         private void SubfolderGrid_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedSubfolder = (AnimeItemViewModel)e.ClickedItem;
-            this.Frame.Navigate(typeof(FolderPage), clickedSubfolder);
+
+            // NEW: Pass the current anime as the parent, and the clicked folder as the child
+            var currentAnime = new AnimeItemViewModel { DriveId = _currentFolderId, Title = _currentAnimeTitle };
+            this.Frame.Navigate(typeof(FolderPage), (currentAnime, clickedSubfolder));
         }
 
-        // Note: We added the 'async' keyword to the method signature!
         private async void EpisodesList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var clickedEpisode = (EpisodeItemViewModel)e.ClickedItem;
-
-            // 1. Turn on the loading screen
             LoadingOverlay.Visibility = Visibility.Visible;
-
-            // 2. CRITICAL FIX: Yield to the UI thread for 50ms so it actually draws the overlay!
             await Task.Delay(50);
-
-            // 3. Now trigger the heavy navigation to the PlayerPage
             this.Frame.Navigate(typeof(PlayerPage), clickedEpisode);
-
-            // 4. Hide the overlay immediately after navigation finishes, 
-            // so it is clean and ready when the user clicks the "Back" button later!
             LoadingOverlay.Visibility = Visibility.Collapsed;
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (this.Frame.CanGoBack) this.Frame.GoBack();
+            if (_parentAnime != null)
+            {
+                // We are in a subfolder, navigate back to the parent folder safely
+                this.Frame.Navigate(typeof(FolderPage), _parentAnime);
+            }
+            else
+            {
+                // We are at the root level!
+                // Instead of trusting Frame.GoBack(), we explicitly force a clean return to MainPage
+                this.Frame.Navigate(typeof(MainPage));
+
+                // Clear the back stack so we don't build up an infinite loop of MainPages
+                this.Frame.BackStack.Clear();
+            }
         }
     }
 }

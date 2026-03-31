@@ -267,10 +267,8 @@ namespace AnimeStreamer.Views
                     var media = new Media(_libVLC, proxyUrl, FromType.FromLocation);
 
                     // OPTIMIZATION: Aggressive low-latency flags for high-speed internet!
-                    media.AddOption(":network-caching=300");  // Start playing after just 0.3 seconds!
-                    media.AddOption(":file-caching=300");     // Treat local proxy as a fast file
-                    media.AddOption(":clock-jitter=0");       // Disable artificial jitter delays
-                    media.AddOption(":clock-synchro=0");      // Disable strict clock sync on startup
+                    media.AddOption(":network-caching=1000");
+                    media.AddOption(":file-caching=1000");
 
                     _mediaPlayer.Play(media);
                 }

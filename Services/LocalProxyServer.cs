@@ -12,8 +12,8 @@ namespace AnimeStreamer.Services
         private CancellationTokenSource? _cts;
         private int _port;
 
-        // OPTIMIZATION: Maximize 60MB/s bandwidth with a massive 4MB buffer!
-        private const int BufferSize = 4194304;
+        // OPTIMIZATION: 512 KB (524288 bytes) provides massive throughput with zero micro-pauses!
+        private const int BufferSize = 524288;
 
         public int Port => _port;
 

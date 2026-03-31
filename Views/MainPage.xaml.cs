@@ -1,9 +1,7 @@
-using Microsoft.UI.Xaml.Controls;
-using System.Collections.ObjectModel;
-using System.Threading.Tasks;
-using StreamApp.Services;
 using AnimeStreamer.Services;
+using StreamApp.Services;
 using StreamApp.ViewModels;
+using System.Collections.ObjectModel;
 
 namespace AnimeStreamer.Views
 {

@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
+using AnimeStreamer.Services;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Linq; // Required for the progressive word truncation
-using AnimeStreamer.Services;
 
 namespace StreamApp.Services
 {

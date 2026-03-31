@@ -3,78 +3,83 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:StreamApp.ViewModels"
-	xmlns:helpers="using:AnimeStreamer.Helpers"
+    xmlns:helpers="using:AnimeStreamer.Helpers"
     Background="#0F0F0F">
 
-	<Grid Background="#0F0F0F" Padding="24">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="*"/>
-		</Grid.RowDefinitions>
+    <Grid Background="#0F0F0F" Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-		<Button Content="Back" Click="BackButton_Click" Style="{StaticResource Action}" Margin="0,0,0,20"/>
+        <Button Click="BackButton_Click" Style="{StaticResource MaterialBackButton}" Margin="0,0,0,20">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xE72B;" FontSize="16" FontFamily="Segoe MDL2 Assets"/>
+                <TextBlock Text="Back" Margin="0,0,4,0"/>
+            </StackPanel>
+        </Button>
 
-		<TextBlock x:Name="AnimeTitleText" Text="Anime Title" FontSize="32" FontWeight="Bold" Foreground="White" Grid.Row="1" Margin="0,0,0,20"/>
+        <TextBlock x:Name="AnimeTitleText" Text="Anime Title" FontSize="32" FontWeight="Bold" Foreground="White" Grid.Row="1" Margin="0,0,0,20"/>
 
-		<ProgressRing x:Name="EpisodesLoadingRing" IsActive="False" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E50914" IsHitTestVisible="False"/>
-		<TextBlock x:Name="ErrorText" Foreground="#E50914" FontSize="16" TextWrapping="Wrap" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
+        <ProgressRing x:Name="EpisodesLoadingRing" IsActive="False" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E50914" IsHitTestVisible="False"/>
+        <TextBlock x:Name="ErrorText" Foreground="#E50914" FontSize="16" TextWrapping="Wrap" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False"/>
 
-		<Grid Grid.Row="2">
-			<Grid.RowDefinitions>
-				<RowDefinition Height="Auto"/>
-				<RowDefinition Height="*"/>
-			</Grid.RowDefinitions>
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-			<GridView x:Name="SubfolderGrid" Grid.Row="0" SelectionMode="Single" ItemClick="SubfolderGrid_ItemClick" IsItemClickEnabled="True" Visibility="Collapsed" Margin="0,0,0,20">
-				<GridView.ItemTemplate>
-					<DataTemplate x:DataType="local:AnimeItemViewModel">
+            <GridView x:Name="SubfolderGrid" Grid.Row="0" SelectionMode="Single" ItemClick="SubfolderGrid_ItemClick" IsItemClickEnabled="True" Visibility="Collapsed" Margin="0,0,0,20">
+                <GridView.ItemTemplate>
+                    <DataTemplate x:DataType="local:AnimeItemViewModel">
 
-						<Grid Width="200" Height="300" Margin="10" CornerRadius="8"
-							  helpers:HoverEffect.IsEnabled="True">
+                        <Grid Width="200" Height="300" Margin="10" CornerRadius="8"
+                              helpers:HoverEffect.IsEnabled="True">
 
-							<Image Source="{x:Bind CoverUrl, Mode=OneWay}" Stretch="UniformToFill" />
-							<Border VerticalAlignment="Bottom" Height="100">
-								<Border.Background>
-									<LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-										<GradientStop Color="#00000000" Offset="0.0"/>
-										<GradientStop Color="#E6000000" Offset="1.0"/>
-									</LinearGradientBrush>
-								</Border.Background>
-							</Border>
-							<TextBlock Text="{x:Bind Title}"
-                                           Foreground="White"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Bottom"
-                                           Margin="10"
-                                           TextWrapping="WrapWholeWords"
-                                           MaxLines="2"
-                                           TextTrimming="CharacterEllipsis"
-                                           ToolTipService.ToolTip="{x:Bind Title}"
-                                           ToolTipService.Placement="Mouse"/>
-						</Grid>
+                            <Image Source="{x:Bind CoverUrl, Mode=OneWay}" Stretch="UniformToFill" />
+                            <Border VerticalAlignment="Bottom" Height="100">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#00000000" Offset="0.0"/>
+                                        <GradientStop Color="#E6000000" Offset="1.0"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <TextBlock Text="{x:Bind Title}"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Bottom"
+                                       Margin="10"
+                                       TextWrapping="WrapWholeWords"
+                                       MaxLines="2"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTipService.ToolTip="{x:Bind Title}"
+                                       ToolTipService.Placement="Mouse"/>
+                        </Grid>
 
-					</DataTemplate>
-				</GridView.ItemTemplate>
-			</GridView>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
 
-			<ListView x:Name="EpisodesList" Grid.Row="1" SelectionMode="Single" ItemClick="EpisodesList_ItemClick" IsItemClickEnabled="True" Visibility="Collapsed">
-				<ListView.ItemTemplate>
-					<DataTemplate x:DataType="local:EpisodeItemViewModel">
-						<Grid Padding="12" BorderBrush="#333333" BorderThickness="0,0,0,1">
-							<TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="16" VerticalAlignment="Center"/>
-						</Grid>
-					</DataTemplate>
-				</ListView.ItemTemplate>
-			</ListView>
-		</Grid>
+            <ListView x:Name="EpisodesList" Grid.Row="1" SelectionMode="Single" ItemClick="EpisodesList_ItemClick" IsItemClickEnabled="True" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:EpisodeItemViewModel">
+                        <Grid Padding="12" BorderBrush="#333333" BorderThickness="0,0,0,1">
+                            <TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="16" VerticalAlignment="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
 
-		<Grid x:Name="LoadingOverlay" Visibility="Collapsed" Grid.RowSpan="3" Background="#CC000000" Canvas.ZIndex="100">
-			<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
-				<ProgressRing IsActive="True" Width="60" Height="60" Foreground="#E50914"/>
-				<TextBlock Text="Opening Stream..." Foreground="White" FontSize="18" HorizontalAlignment="Center"/>
-			</StackPanel>
-		</Grid>
+        <Grid x:Name="LoadingOverlay" Visibility="Collapsed" Grid.RowSpan="3" Background="#CC000000" Canvas.ZIndex="100">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
+                <ProgressRing IsActive="True" Width="60" Height="60" Foreground="#E50914"/>
+                <TextBlock Text="Opening Stream..." Foreground="White" FontSize="18" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
 
-	</Grid>
+    </Grid>
 </Page>

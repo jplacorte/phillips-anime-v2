@@ -24,10 +24,15 @@
 
         <ProgressRing x:Name="BufferingRing" IsActive="True" Foreground="#E50914" Width="60" Height="60" VerticalAlignment="Center" HorizontalAlignment="Center"/>
 
-        <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" Background="#B2000000" Padding="20" CornerRadius="8">
+        <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" Background="#B2000000" Padding="20" CornerRadius="16">
             <TextBlock Text="Stream Unavailable 😥" FontSize="24" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
             <TextBlock Text="Failed to load the video. Please try again later." Foreground="LightGray" TextAlignment="Center" Margin="0,10,0,0"/>
-            <Button Content="Go Back" Click="BackButton_Click" AllowFocusOnInteraction="False" HorizontalAlignment="Center" Margin="0,20,0,0"/>
+            <Button Click="BackButton_Click" AllowFocusOnInteraction="False" HorizontalAlignment="Center" Margin="0,20,0,0" Style="{StaticResource MaterialBackButton}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72B;" FontSize="16" FontFamily="Segoe MDL2 Assets"/>
+                    <TextBlock Text="Go Back" Margin="0,0,4,0"/>
+                </StackPanel>
+            </Button>
         </StackPanel>
 
         <Grid x:Name="UIOverlay" Background="Transparent">
@@ -40,11 +45,16 @@
                 </Border.Background>
             </Border>
 
-            <Button Content="Back" Click="BackButton_Click" AllowFocusOnInteraction="False" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Background="#80000000" Foreground="White" Style="{StaticResource Action}"/>
+            <Button Click="BackButton_Click" AllowFocusOnInteraction="False" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24" Style="{StaticResource MaterialBackButton}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72B;" FontSize="16" FontFamily="Segoe MDL2 Assets"/>
+                    <TextBlock Text="Back" Margin="0,0,4,0"/>
+                </StackPanel>
+            </Button>
 
             <TextBlock x:Name="EpisodeTitleText" Text="Loading..." FontSize="22" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,28,0,0" IsHitTestVisible="False"/>
 
-            <Grid VerticalAlignment="Bottom" Background="#B2000000" Padding="20,10" Margin="20" CornerRadius="8">
+            <Grid VerticalAlignment="Bottom" Background="#B2000000" Padding="20,10" Margin="20" CornerRadius="16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -74,19 +84,19 @@
                         <Button x:Name="PlayPauseButton" Content="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="PlayPauseButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
                         <Button x:Name="NextButton" Content="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="20" Click="NextButton_Click" AllowFocusOnInteraction="False" Background="Transparent" Foreground="White"/>
 
-                        <StackPanel x:Name="ChapterPanel" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" Visibility="Collapsed">
+                        <StackPanel x:Name="ChapterPanel" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Visibility="Collapsed">
                             <TextBlock Text="Chapters:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="ChapterCombo" PlaceholderText="Chapters" Width="150" DisplayMemberPath="Name" SelectionChanged="ChapterCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                            <ComboBox x:Name="ChapterCombo" PlaceholderText="Chapters" Width="150" DisplayMemberPath="Name" SelectionChanged="ChapterCombo_SelectionChanged" Style="{StaticResource MaterialComboBox}"/>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <TextBlock Text="Audio:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                            <ComboBox x:Name="AudioTrackCombo" PlaceholderText="Audio" Width="120" DisplayMemberPath="Name" SelectionChanged="AudioTrackCombo_SelectionChanged" Style="{StaticResource MaterialComboBox}"/>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <TextBlock Text="Subtitles:" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Background="#333333" Foreground="White"/>
+                            <ComboBox x:Name="SubtitleTrackCombo" PlaceholderText="Subtitles" Width="120" DisplayMemberPath="Name" SelectionChanged="SubtitleTrackCombo_SelectionChanged" Style="{StaticResource MaterialComboBox}"/>
                         </StackPanel>
                     </StackPanel>
 
