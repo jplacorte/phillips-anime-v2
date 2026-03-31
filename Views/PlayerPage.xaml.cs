@@ -18,6 +18,7 @@ namespace AnimeStreamer.Views
 
         // CRITICAL FIX: Tracker to prevent WinUI async event looping for chapters
         private int _currentChapterIndex = -1;
+        private bool _isProgrammaticChapterChange = false;
 
         private EpisodeItemViewModel? _currentEpisode;
         private LocalProxyServer? _proxyServer;
@@ -229,12 +230,18 @@ namespace AnimeStreamer.Views
 
             // CRITICAL FIX: Track chapter changes before updating UI
             _mediaPlayer.ChapterChanged += (s, args) => {
-                _currentChapterIndex = args.Chapter;
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (ChapterCombo.ItemsSource != null && args.Chapter < ChapterCombo.Items.Count)
                     {
+                        // Activate the flag to prevent SelectionChanged from seeking the video
+                        _isProgrammaticChapterChange = true;
+
+                        _currentChapterIndex = args.Chapter;
                         ChapterCombo.SelectedIndex = args.Chapter;
+
+                        // Release the flag
+                        _isProgrammaticChapterChange = false;
                     }
                 });
             };
@@ -289,8 +296,11 @@ namespace AnimeStreamer.Views
                         ChapterCombo.ItemsSource = chapterList;
                         ChapterPanel.Visibility = Visibility.Visible;
 
+                        // FIX: Wrap the initial assignment with the flag
+                        _isProgrammaticChapterChange = true;
                         _currentChapterIndex = _mediaPlayer.Chapter > -1 ? _mediaPlayer.Chapter : 0;
                         ChapterCombo.SelectedIndex = _currentChapterIndex;
+                        _isProgrammaticChapterChange = false;
                     }
                     else
                     {
@@ -311,6 +321,9 @@ namespace AnimeStreamer.Views
 
         private void ChapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // FIX: Ignore programmatic UI updates
+            if (_isProgrammaticChapterChange) return;
+
             if (ChapterCombo.SelectedItem is TrackItem track && _mediaPlayer != null)
             {
                 // DOUBLE CHECK: Ensure the UI index AND VLC's native index do not match what was selected
