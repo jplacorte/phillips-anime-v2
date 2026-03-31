@@ -12,8 +12,8 @@ namespace AnimeStreamer.Services
         private CancellationTokenSource? _cts;
         private int _port;
 
-        // OPTIMIZATION: 512 KB (524288 bytes) provides massive throughput with zero micro-pauses!
-        private const int BufferSize = 524288;
+        // OPTIMIZATION: 128 KB (131072 bytes) is the universal sweet spot. 
+        private const int BufferSize = 131072;
 
         public int Port => _port;
 
@@ -51,8 +51,7 @@ namespace AnimeStreamer.Services
                 {
                     var client = await _listener!.AcceptTcpClientAsync(token);
 
-                    // OPTIMIZATION: Tweak Socket settings for high-bandwidth media streaming
-                    client.NoDelay = true; // Disable Nagle's algorithm to reduce latency
+                    client.NoDelay = true;
                     client.SendBufferSize = BufferSize;
                     client.ReceiveBufferSize = BufferSize;
 
@@ -109,7 +108,6 @@ namespace AnimeStreamer.Services
                 if (rangeHeader != null)
                     httpRequest.Headers.TryAddWithoutValidation("Range", rangeHeader);
 
-                // HttpCompletionOption.ResponseHeadersRead is crucial here (which you already had!)
                 using var httpResponse = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, token);
 
                 await WriteResponseAsync(networkStream, $"HTTP/1.1 {(int)httpResponse.StatusCode} {httpResponse.ReasonPhrase}\r\n");
@@ -135,8 +133,6 @@ namespace AnimeStreamer.Services
                 if (httpMethod == "GET" && httpResponse.IsSuccessStatusCode)
                 {
                     using var inStream = await httpResponse.Content.ReadAsStreamAsync(token);
-
-                    // OPTIMIZATION: Use a much larger buffer for the stream copy
                     await inStream.CopyToAsync(networkStream, BufferSize, token);
                 }
             }
