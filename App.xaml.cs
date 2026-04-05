@@ -1,3 +1,4 @@
+using AnimeStreamer.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Navigation;
 using WinRT.Interop;
@@ -11,6 +12,9 @@ namespace AnimeStreamer
     {
         // Expose the main Window so pages can find the root Frame for navigation when needed.
         public static Window? MainWindow { get; private set; }
+
+        // Singleton DriveService — shared across all pages to reuse the HTTP pool and token cache.
+        public static GoogleDriveService DriveService { get; } = new GoogleDriveService();
 
         private Window window = Window.Current;
 

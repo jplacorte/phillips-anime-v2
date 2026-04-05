@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -86,7 +86,8 @@ namespace AnimeStreamer.Services
 
                 if (string.IsNullOrEmpty(fileId) || string.IsNullOrEmpty(accessToken))
                 {
-                    await WriteResponseAsync(networkStream, "HTTP/1.1 400 Bad Request\r\n\r\n");
+                    var badRequest = Encoding.ASCII.GetBytes("HTTP/1.1 400 Bad Request\r\n\r\n");
+                    await networkStream.WriteAsync(badRequest.AsMemory(), token);
                     return;
                 }
 
@@ -110,25 +111,32 @@ namespace AnimeStreamer.Services
 
                 using var httpResponse = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, token);
 
-                await WriteResponseAsync(networkStream, $"HTTP/1.1 {(int)httpResponse.StatusCode} {httpResponse.ReasonPhrase}\r\n");
+                // Build the entire HTTP response header block in one string-builder,
+                // then flush it as a single write. With NoDelay=true, writing
+                // one-header-per-call sends dozens of tiny TCP packets — slow start.
+                var responseHeaders = new StringBuilder();
+                responseHeaders.Append($"HTTP/1.1 {(int)httpResponse.StatusCode} {httpResponse.ReasonPhrase}\r\n");
 
                 foreach (var header in httpResponse.Headers)
                 {
                     if (header.Key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) continue;
                     if (header.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)) continue;
                     if (header.Key.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase)) continue;
-                    await WriteResponseAsync(networkStream, $"{header.Key}: {string.Join(", ", header.Value)}\r\n");
+                    responseHeaders.Append($"{header.Key}: {string.Join(", ", header.Value)}\r\n");
                 }
 
                 foreach (var header in httpResponse.Content.Headers)
                 {
                     if (header.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)) continue;
                     if (header.Key.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase)) continue;
-                    await WriteResponseAsync(networkStream, $"{header.Key}: {string.Join(", ", header.Value)}\r\n");
+                    responseHeaders.Append($"{header.Key}: {string.Join(", ", header.Value)}\r\n");
                 }
 
-                await WriteResponseAsync(networkStream, "Accept-Ranges: bytes\r\n");
-                await WriteResponseAsync(networkStream, "Connection: close\r\n\r\n");
+                responseHeaders.Append("Accept-Ranges: bytes\r\n");
+                responseHeaders.Append("Connection: close\r\n\r\n");
+
+                // Single write for the entire header block — no TCP chattering
+                await WriteHeadersAsync(networkStream, responseHeaders, token);
 
                 if (httpMethod == "GET" && httpResponse.IsSuccessStatusCode)
                 {
@@ -140,10 +148,10 @@ namespace AnimeStreamer.Services
             finally { client.Close(); }
         }
 
-        private async Task WriteResponseAsync(NetworkStream stream, string text)
+        private async Task WriteHeadersAsync(NetworkStream stream, StringBuilder headers, CancellationToken token)
         {
-            var bytes = Encoding.ASCII.GetBytes(text);
-            await stream.WriteAsync(bytes, 0, bytes.Length);
+            var bytes = Encoding.ASCII.GetBytes(headers.ToString());
+            await stream.WriteAsync(bytes.AsMemory(), token);
         }
 
         public void Stop()

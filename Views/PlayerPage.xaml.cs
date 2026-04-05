@@ -22,12 +22,18 @@ namespace AnimeStreamer.Views
 
         private EpisodeItemViewModel? _currentEpisode;
         private LocalProxyServer? _proxyServer;
-        private readonly GoogleDriveService _driveService = new GoogleDriveService();
+        // Use the shared singleton — avoids duplicate HTTP pools and reads service-account.json once
+        private readonly GoogleDriveService _driveService = App.DriveService;
 
         private DispatcherTimer _idleTimer;
         private Windows.Foundation.Point _lastPointerPosition;
         private bool _isMuted = false;
         private int _previousVolume = 100;
+
+        // ESAdded debounce: VLC fires one event per track (video, audio, subtitle).
+        // We cancel-and-reschedule on every fire so we only populate AFTER the burst settles,
+        // guaranteeing all tracks are registered before we build the UI lists.
+        private CancellationTokenSource? _trackPopulateCts;
 
         public class TrackItem { public int Id { get; set; } public string Name { get; set; } = string.Empty; }
 
@@ -57,7 +63,11 @@ namespace AnimeStreamer.Views
         {
             public object Convert(object value, Type targetType, object parameter, string language)
             {
-                if (value is double ms) return TimeSpan.FromMilliseconds(ms).ToString(@"mm\:ss");
+                if (value is double ms)
+                {
+                    var ts = TimeSpan.FromMilliseconds(ms);
+                    return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"mm\:ss");
+                }
                 return "00:00";
             }
             public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotImplementedException();
@@ -180,15 +190,16 @@ namespace AnimeStreamer.Views
 #pragma warning disable CS8622
         private async void VideoView_Initialized(object? sender, InitializedEventArgs e)
         {
-            // These options already contain WinUI 3's native, safe hardware acceleration instructions!
             var options = e.SwapChainOptions.ToList();
 
-            // THE FIX: Remove the manual hardware flags that crash WinUI 3!
-            // Instead, we enable these native VLC safety valves. If a heavy 3D scene 
-            // overwhelms the system, VLC will silently skip a micro-frame to keep the 
-            // audio and video perfectly synced without freezing or crashing.
-            options.Add("--drop-late-frames");
-            options.Add("--skip-frames");
+            // GPU Hardware Decode: d3d11va uses the GPU's dedicated video decode engine.
+            // It shares the same D3D11 device WinUI's SwapChain already set up,
+            // so there is NO conflict. VLC silently falls back to software if unsupported.
+            options.Add("--avcodec-hw=d3d11va");
+
+            // Prevent VLC from auto-loading external subtitle files that might
+            // override the embedded styled ASS/SSA tracks inside the MKV.
+            options.Add("--no-sub-autodetect-file");
 
             _libVLC = new LibVLC(options.ToArray());
             _mediaPlayer = new MediaPlayer(_libVLC);
@@ -198,7 +209,7 @@ namespace AnimeStreamer.Views
             _mediaPlayer.TimeChanged += (s, args) => DispatcherQueue.TryEnqueue(() => UpdatePosition(args.Time));
             _mediaPlayer.LengthChanged += (s, args) => DispatcherQueue.TryEnqueue(() => TimelineSlider.Maximum = args.Length);
 
-            _mediaPlayer.Playing += async (s, args) =>
+            _mediaPlayer.Playing += (s, args) =>
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
@@ -207,13 +218,29 @@ namespace AnimeStreamer.Views
                     _idleTimer.Start();
                     PlayPauseButton.Content = "\xE769";
                 });
+            };
 
-                await Task.Delay(1000);
-                DispatcherQueue.TryEnqueue(() =>
+            // ESAdded fires once per elementary stream: video, then audio, then each subtitle.
+            // Populating on the very first fire means audio/subtitle tracks don't exist yet.
+            // The debounce pattern: cancel the previous scheduled call and start a new 700ms
+            // countdown on every ESAdded. We only actually populate after the burst settles.
+            _mediaPlayer.ESAdded += (s, args) =>
+            {
+                _trackPopulateCts?.Cancel();
+                _trackPopulateCts = new CancellationTokenSource();
+                var cts = _trackPopulateCts;
+
+                Task.Delay(700, cts.Token).ContinueWith(_ =>
                 {
-                    PopulateTracks();
-                    PopulateChapters();
-                });
+                    if (!cts.IsCancellationRequested)
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            PopulateTracks();
+                            PopulateChapters();
+                        });
+                    }
+                }, TaskContinuationOptions.NotOnCanceled);
             };
 
             _mediaPlayer.Paused += (s, args) => DispatcherQueue.TryEnqueue(() =>
@@ -234,13 +261,9 @@ namespace AnimeStreamer.Views
                 {
                     if (ChapterCombo.ItemsSource != null && args.Chapter < ChapterCombo.Items.Count)
                     {
-                        // Activate the flag to prevent SelectionChanged from seeking the video
                         _isProgrammaticChapterChange = true;
-
                         _currentChapterIndex = args.Chapter;
                         ChapterCombo.SelectedIndex = args.Chapter;
-
-                        // Release the flag
                         _isProgrammaticChapterChange = false;
                     }
                 });
@@ -260,8 +283,13 @@ namespace AnimeStreamer.Views
 
                     var media = new Media(_libVLC, proxyUrl, FromType.FromLocation);
 
-                    media.AddOption(":network-caching=1000");
-                    media.AddOption(":file-caching=1000");
+                    // 3 seconds of pre-buffer is safer for high-bitrate 1080p over Google Drive.
+                    // http-reconnect lets VLC silently resume if Drive drops the connection mid-stream.
+                    // clock-jitter=0 tells VLC to trust the file's clock and not try to drift-correct,
+                    // which avoids phantom A/V desync on well-encoded files.
+                    media.AddOption(":network-caching=3000");
+                    media.AddOption(":http-reconnect=1");
+                    media.AddOption(":clock-jitter=0");
 
                     _mediaPlayer.Play(media);
                 }
@@ -396,7 +424,11 @@ namespace AnimeStreamer.Views
             }
         }
 
-        private string FormatTime(long ms) { return TimeSpan.FromMilliseconds(ms).ToString(@"mm\:ss"); }
+        private string FormatTime(long ms)
+        {
+            var ts = TimeSpan.FromMilliseconds(ms);
+            return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"mm\:ss");
+        }
 
         private void TimelineSlider_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
@@ -446,6 +478,9 @@ namespace AnimeStreamer.Views
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             _idleTimer.Stop();
+            _trackPopulateCts?.Cancel();
+            _trackPopulateCts?.Dispose();
+            _trackPopulateCts = null;
             if (VideoView != null) VideoView.MediaPlayer = null;
             if (_mediaPlayer != null) { _mediaPlayer.Stop(); _mediaPlayer.Dispose(); _mediaPlayer = null; }
             if (_libVLC != null) { _libVLC.Dispose(); _libVLC = null; }

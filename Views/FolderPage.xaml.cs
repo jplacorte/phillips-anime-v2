@@ -8,7 +8,8 @@ namespace AnimeStreamer.Views
 {
     public sealed partial class FolderPage : Page
     {
-        private readonly GoogleDriveService _driveService = new GoogleDriveService();
+        // Use the shared singleton — same HTTP pool and token cache as PlayerPage
+        private readonly GoogleDriveService _driveService = App.DriveService;
 
         public ObservableCollection<EpisodeItemViewModel> Episodes { get; } = new();
         public ObservableCollection<AnimeItemViewModel> Subfolders { get; } = new();

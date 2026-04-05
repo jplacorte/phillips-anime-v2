@@ -13,6 +13,10 @@ namespace AnimeStreamer.Services
 
         public const string TempFolderId = "1gHt2ufjQUvZsGUczXafua3bYihH1IjQd";
 
+        // Token cache: service account tokens are valid for exactly 1 hour
+        private string? _cachedToken;
+        private DateTime _tokenExpiry = DateTime.MinValue;
+
         public GoogleDriveService()
         {
             string appFolder = System.AppContext.BaseDirectory;
@@ -31,8 +35,13 @@ namespace AnimeStreamer.Services
 
         public async Task<string> GetAccessTokenAsync()
         {
-            var token = await _credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
-            return token;
+            // Return cached token if it has more than 2 minutes of life left
+            if (_cachedToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-2))
+                return _cachedToken;
+
+            _cachedToken = await _credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
+            _tokenExpiry = DateTime.UtcNow.AddHours(1); // Service account tokens last 1 hour
+            return _cachedToken;
         }
 
         public async Task<IList<DriveFile>> GetAnimeFoldersAsync()

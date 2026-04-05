@@ -4,7 +4,10 @@ namespace AnimeStreamer.Services
 {
     public static class ImageCacheService
     {
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _httpClient = new HttpClient()
+        {
+            Timeout = TimeSpan.FromSeconds(15)
+        };
         private const string CacheFolderName = "AnimeCovers";
 
         static ImageCacheService()
